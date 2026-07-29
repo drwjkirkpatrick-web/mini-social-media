@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Support This Server{% endblock %}
+{% block content %}
+<h2>💝 Support This Community</h2>
+<p>This mini-social-media instance is run by a real person, for real people.</p>
+{% if enabled %}
+  <form method="POST" action="{{ url_for('donate_checkout') }}">
+    <button type="submit" class="btn btn-primary" style="font-size:1.2rem;">❤️ Donate via Stripe</button>
+  </form>
+{% else %}
+  <p>Donations are not currently enabled on this instance.</p>
+{% endif %}
+{% endblock %}

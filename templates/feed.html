@@ -12,6 +12,7 @@
     <a href="{{ url_for('feed', sort='oldest') }}" class="btn btn-small {% if sort=='oldest' %}btn-primary{% endif %}">Oldest</a>
     <a href="{{ url_for('feed', sort='engaged') }}" class="btn btn-small {% if sort=='engaged' %}btn-primary{% endif %}">Most Engaged</a>
     <a href="{{ url_for('feed', sort='chronological_with_highlights') }}" class="btn btn-small {% if sort=='chronological_with_highlights' %}btn-primary{% endif %}">Highlights</a>
+    <a href="{{ url_for('feed', sort='photos') }}" class="btn btn-small {% if sort=='photos' %}btn-primary{% endif %}">Photos First</a>
   </div>
   {% for post in posts %}
   <div class="card">
@@ -55,10 +56,10 @@
         <button type="submit" class="btn btn-small" style="background:#eee;">Like ({{ post.like_count or 0 }})</button>
       </form>
       <div class="reaction-bar">
-        {% for rtype in ['heart','laugh','wow','sad','fire','party','peach','floppy','black_heart','clover','pray','tada'] %}
+        {% for rtype in ['heart','laugh','wow','sad','fire','party','peach','floppy','black_heart','clover','pray','tada','unicorn','heart_suit','sparkles','two_hearts'] %}
           <form method="POST" action="{{ url_for('react_to_post', post_id=post.id) }}" style="display:inline;">
             <input type="hidden" name="reaction" value="{{ rtype }}">
-            <button type="submit" class="reaction-btn {% if post.user_reaction == rtype %}active{% endif %}">{{ {'heart':'❤️','laugh':'😂','wow':'😮','sad':'😢','fire':'🔥','party':'🥳','peach':'🍑','floppy':'💾','black_heart':'🖤','clover':'☘️','pray':'🙏','tada':'🎉'}[rtype] }} {{ post.reactions[rtype] or '' }}</button>
+            <button type="submit" class="reaction-btn {% if post.user_reaction == rtype %}active{% endif %}">{{ {'heart':'❤️','laugh':'😂','wow':'😮','sad':'😢','fire':'🔥','party':'🥳','peach':'🍑','floppy':'💾','black_heart':'🖤','clover':'☘️','pray':'🙏','tada':'🎉','unicorn':'🦄','heart_suit':'♥️','sparkles':'✨','two_hearts':'💕'}[rtype] }} {{ post.reactions[rtype] or '' }}</button>
           </form>
         {% endfor %}
       </div>

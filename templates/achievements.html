@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Achievements{% endblock %}
+{% block content %}
+<h2>🏆 Achievements</h2>
+<p>Earning these means you're building a healthy, meaningful relationship with social media.</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem;">
+{% for ach in achievements %}
+  <div class="card" style="opacity:{{ '1' if ach.id in user_achievements else '0.6' }}">
+    <div style="font-size:2rem;">{{ ach.icon or '🏅' }}</div>
+    <h4>{{ ach.name }}</h4>
+    <p>{{ ach.description }}</p>
+    {% if ach.id in user_achievements %}
+      <span class="badge badge-success">Unlocked {{ user_achievements[ach.id].unlocked_at[:10] }}</span>
+    {% else %}
+      <span class="badge">Locked — {{ ach.category }}</span>
+    {% endif %}
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

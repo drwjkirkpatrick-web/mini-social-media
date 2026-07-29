@@ -29,7 +29,8 @@ should be ready.
 - **Polls** — Ask questions, vote, see results.
 - **Friend Circles** — Create custom groups (Family, Work, Hobby).
 - **Emoji Reactions** — Heart ❤️, laugh 😂, wow 😮, sad 😢, fire 🔥, party 🥳,
-  peach 🍑, floppy 💾, black heart 🖤, clover ☘️, pray 🙏, tada 🎉.
+  peach 🍑, floppy 💾, black heart 🖤, clover ☘️, pray 🙏, tada 🎉, unicorn 🦄,
+  heart suit ♥️, sparkles ✨, two hearts 💕. 16 total.
 - **Bookmarks, @Mentions, DMs, Notifications, Search, Hashtags**
 - **Discover & Mutual Friends** — Meet people through mutual connections.
 - **Post Analytics, Content Warnings, Pinned Posts, Sharing, Drafts**
@@ -66,6 +67,31 @@ should be ready.
 - **Event Planner** — Suggests events based on friend availability.
 - **Moderation Assistant** — Nuanced sentiment/toxicity/spam scoring via webhook.
 - **Weekly Community Report** — Natural language summary of community health.
+
+### Health, Growth & Operations (v0.5.0)
+- **Expanded Reactions** — 🦄 (unicorn), ♥️ (heart suit), ✨ (sparkles), 💕 (two hearts)
+  join the existing 12. 16 total emoji reactions.
+- **Admin Disk Usage Dashboard** — `/admin/disk` shows DB size, uploads size,
+  file counts, user/post/photo/video/voice totals.
+- **Profile Improvements** — Cover photo, bio (500 chars), birthday fields,
+  activity graph, posting streaks.
+- **Healthy Social Media Achievements** — 13 achievements rewarding wellness:
+  `First Steps`, `Social Butterfly`, `Deep Connector`, `Healthy Habit` (7-day streak),
+  `Digital Detox Champion` (3+ day break, then return), `Community Builder`,
+  `Thoughtful Responder`, `Memory Keeper`, `Storyteller`, `Poll Master`,
+  `Helper`, `Verified Human`, `Long-Term Friend`.
+- **Stripe Donations (Optional)** — `/donate` with Stripe Checkout. Only active
+  if `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID` are configured.
+- **Manual + Auto Backup** — SQLite `.dump` + uploads tar. Admin trigger or nightly.
+  Keeps last 7 backups.
+- **Easy Logo Swap** — `SITE_LOGO_URL` env var. Drop a new image, restart.
+- **Optional Site Motto** — `SITE_MOTTO` env var. Displayed in navbar/footer.
+- **Photo-First Feed Sort** — `?sort=photos` — visual posts first, then text.
+- **Community Guidelines** — `/guidelines` with acceptance tracking. Required
+  before first post.
+- **Post Series** — Group related posts into themed collections.
+- **Code Optimizations** — Thread-local DB connections, request deduplication cache,
+  lazy image loading with IntersectionObserver.
 
 ---
 
@@ -112,7 +138,7 @@ create_user("admin", "admin@example.com", hash_password("changeme"), role="admin
 | Audit | SHA-256 hash chain with nonce |
 | Deployment | Docker + Docker Compose |
 | PWA | Web App Manifest + Service Worker |
-| Tests | pytest (119 tests, all passing) |
+| Tests | pytest (129 tests, all passing) |
 
 ---
 
@@ -140,7 +166,8 @@ mini-social-media/
 ├── PROMPTS_v2.md           # 30 v0.2.0 prompts
 ├── PROMPTS_v3.md           # 30 v0.3.0 prompts
 ├── PROMPTS_v4.md           # 30 v0.4.0 prompts
-├── tests/                  # 64 pytest test files
+├── PROMPTS_v5.md           # 30 v0.5.0 prompts
+├── tests/                  # 71 pytest test files
 └── README.md
 ```
 
@@ -168,15 +195,15 @@ All settings load from environment variables with sensible defaults:
 .venv/bin/python -m pytest tests/ -v
 ```
 
-119 tests covering:
+129 tests covering:
 - Database schema, connection layer, CRUD
 - Password hashing (PBKDF2 + Argon2id) + transparent migration
 - Session management + rate limiting
 - Signup / login / logout / onboarding
 - Post creation (text, link, photo, video, voice) + content warnings
-- Feed engine (4 sort modes: newest, oldest, engaged, highlights)
+- Feed engine (5 sort modes: newest, oldest, engaged, highlights, photos)
 - Friend requests (send, accept, reject, unfriend)
-- Likes + emoji reactions (12 types including 🥳🍑💾🖤☘️🙏🎉)
+- Likes + emoji reactions (16 types including 🦄♥️✨💕)
 - Comments + @mentions
 - Photo uploads (multi-format)
 - Personal pages + professional albums
@@ -193,22 +220,20 @@ All settings load from environment variables with sensible defaults:
 - Reading list + wishlist
 - Collaborative notes
 - Birthday reminders
+- Mood status
 - Blockchain audit log
 - Agent moderation scoring
 - Human review queue
 - Hermes webhook bridge
-- Admin dashboard
-- Privacy model
-- Password reset
-- Theme customization
-- Data export
-- Account deactivation
-- Invite links
-- Health check + password hash audit
+- Admin dashboard + disk usage
+- Achievements (13 wellness-focused)
+- User activity + streaks
+- Backups
+- Post series
+- Community guidelines
 - PWA manifest + service worker
 - Docker file presence
 - Full end-to-end integration flow
-
 ---
 
 ## Privacy Model
@@ -260,6 +285,7 @@ Supported actions: `moderate`, `notify`, `summarize`, `connection_prompt`,
 | **v0.2.0** | 30 new modules: events, polls, circles, reactions, bookmarks, mentions, DMs, notifications, search, hashtags, discover, mutual friends, analytics, content warnings, export, deactivation, theme, invite links, onboarding, help center, password reset, engaged sort |
 | **v0.3.0** | Docker, WebSocket real-time, PWA, quantum-safe Argon2id passwords |
 | **v0.4.0** | Short video (≤29s), voice messages, stories, professional photo albums, daily prompts, ice breakers, reading list, wishlist, collaborative notes, message groups, birthday reminders, mood status, expanded reactions (🥳🍑💾🖤☘️🙏🎉), "chronological with highlights" feed sort, Hermes AI integration |
+| **v0.5.0** | Expanded reactions (🦄♥️✨💕), admin disk usage, profile improvements, 13 healthy-social-media achievements, Stripe donations, backup, logo/motto swap, photo-first sort, community guidelines, post series, code optimizations |
 
 ---
 

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Community Guidelines{% endblock %}
+{% block content %}
+<h2>📜 Community Guidelines</h2>
+<p>Welcome to our community! These guidelines help keep this space safe and welcoming.</p>
+<ul>
+  <li><strong>Be kind.</strong> Treat others with respect and empathy.</li>
+  <li><strong>Privacy matters.</strong> Don't share others' content without permission.</li>
+  <li><strong>No harassment.</strong> No hate speech, threats, or bullying.</li>
+  <li><strong>Authenticity.</strong> Be yourself. No impersonation.</li>
+  <li><strong>Healthy boundaries.</strong> It's okay to take breaks. It's okay to say no.</li>
+  <li><strong>Content warnings.</strong> Tag sensitive topics when needed.</li>
+</ul>
+{% if current_user %}
+<form method="POST" action="{{ url_for('accept_guidelines') }}">
+  <button type="submit" class="btn btn-primary">I Accept These Guidelines</button>
+</form>
+{% endif %}
+{% endblock %}

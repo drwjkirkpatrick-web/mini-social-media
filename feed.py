@@ -91,6 +91,14 @@ def get_feed(user_id: int, sort: str = "newest", limit: int = 50, offset: int = 
         result = highlights + [p for p in posts if p["id"] not in highlight_ids]
         posts = result
 
+    elif sort == "photos":
+        # Photo/video posts first, then text/link, each group sorted newest
+        def _is_visual(post):
+            return post.get("photo_url") or post.get("video_url") or post.get("photo_urls")
+        visual = [p for p in posts if _is_visual(p)]
+        other = [p for p in posts if not _is_visual(p)]
+        posts = visual + other
+
     return posts
 
 

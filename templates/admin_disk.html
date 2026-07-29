@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Disk Usage{% endblock %}
+{% block content %}
+<h2>💾 Disk Usage</h2>
+<div class="card">
+  <p><strong>Database:</strong> {{ (db_size / 1024 / 1024)|round(2) }} MB</p>
+  <p><strong>Uploads:</strong> {{ (uploads_size / 1024 / 1024)|round(2) }} MB ({{ uploads_count }} files)</p>
+  <p><strong>Users:</strong> {{ stats.user_count }}</p>
+  <p><strong>Posts:</strong> {{ stats.post_count }}</p>
+  <p><strong>Photos:</strong> {{ stats.photo_count }}</p>
+  <p><strong>Videos:</strong> {{ stats.video_count }}</p>
+  <p><strong>Voice:</strong> {{ stats.voice_count }}</p>
+</div>
+<a href="{{ url_for('admin_dashboard') }}" class="btn btn-small">← Admin Dashboard</a>
+{% endblock %}

@@ -38,6 +38,10 @@ class Config:
         r"(https?://)?(bit\.ly|tinyurl|t\.co)/\S+",  # URL shorteners
     ])
 
+    # Branding
+    site_logo_url: str = "/static/logo.png"
+    site_motto: str = ""
+
     # Feed
     feed_default_limit: int = 50
     feed_max_limit: int = 200
@@ -67,6 +71,8 @@ class Config:
                 r"(https?://)?(bit\.ly|tinyurl|t\.co)/\S+",
             ]),
             feed_default_limit=_int("MINI_SOCIAL_FEED_LIMIT", 50),
+            site_logo_url=os.environ.get("SITE_LOGO_URL", "/static/logo.png"),
+            site_motto=os.environ.get("SITE_MOTTO", ""),
         )
 
 

@@ -28,6 +28,14 @@
       <label for="cover">Cover Photo</label>
       <input type="file" id="cover" name="cover" accept="image/*">
     </div>
+    <div class="form-group">
+      <label for="birthday_month">Birthday Month (1-12)</label>
+      <input type="number" id="birthday_month" name="birthday_month" value="{{ user.birthday_month or '' }}" min="1" max="12">
+    </div>
+    <div class="form-group">
+      <label for="birthday_day">Birthday Day (1-31)</label>
+      <input type="number" id="birthday_day" name="birthday_day" value="{{ user.birthday_day or '' }}" min="1" max="31">
+    </div>
     <button type="submit" class="btn btn-primary">Save Changes</button>
     <a href="{{ url_for('profile') }}" class="btn" style="background:#eee;color:#333;">Cancel</a>
   </form>

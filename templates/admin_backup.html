@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Backups{% endblock %}
+{% block content %}
+<h2>💾 Backups</h2>
+<form method="POST">
+  <button type="submit" class="btn btn-primary">Create Backup Now</button>
+</form>
+<hr>
+<h3>Previous Backups</h3>
+{% if backups %}
+  <ul>
+  {% for b in backups %}
+    <li>{{ b.filename }} — {{ (b.size_bytes / 1024 / 1024)|round(2) }} MB — {{ b.created_at }}</li>
+  {% endfor %}
+  </ul>
+{% else %}
+  <p>No backups yet.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Donation Result{% endblock %}
+{% block content %}
+{% if success %}
+  <h2>🎉 Thank You!</h2>
+  <p>Your donation helps keep this community running. You're wonderful.</p>
+{% else %}
+  <h2>Donation Cancelled</h2>
+  <p>No worries! You can always come back later.</p>
+{% endif %}
+<a href="{{ url_for('feed') }}" class="btn btn-primary">Back to Feed</a>
+{% endblock %}

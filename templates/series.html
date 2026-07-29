@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ series.title }}{% endblock %}
+{% block content %}
+<h2>📚 {{ series.title }}</h2>
+<p>{{ series.description or '' }}</p>
+{% if posts %}
+  {% for post in posts %}
+    <div class="card">
+      <p>{{ post.text_content or '' }}</p>
+      {% if post.photo_url %}
+        <img src="{{ post.photo_url }}" style="max-width:100%;border-radius:8px;">
+      {% endif %}
+      <div style="font-size:0.85rem;color:#666;">{{ post.created_at[:10] }} by {{ post.display_name or post.username }}</div>
+    </div>
+  {% endfor %}
+{% else %}
+  <p>No posts in this series yet.</p>
+{% endif %}
+{% endblock %}

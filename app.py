@@ -50,8 +50,13 @@ def _current_user() -> dict:
 
 
 @app.context_processor
-def inject_current_user():
-    return {"current_user": _current_user()}
+def inject_globals():
+    cfg = get_config()
+    return {
+        "current_user": _current_user(),
+        "site_logo_url": cfg.site_logo_url,
+        "site_motto": cfg.site_motto,
+    }
 
 
 def _slugify(text: str) -> str:
@@ -719,6 +724,13 @@ def profile_edit():
             val = request.form.get(field, "").strip()
             if val:
                 updates[field] = val
+        # Birthday fields
+        bmonth = request.form.get("birthday_month", "").strip()
+        bday = request.form.get("birthday_day", "").strip()
+        if bmonth:
+            updates["birthday_month"] = int(bmonth)
+        if bday:
+            updates["birthday_day"] = int(bday)
         # Handle avatar upload
         if "avatar" in request.files:
             file = request.files["avatar"]
@@ -740,6 +752,7 @@ def profile_edit():
         if updates:
             database.update_user(user["id"], **updates)
             flash("Profile updated.", "success")
+            database.check_and_award_achievements(user["id"])
         return redirect(url_for("profile"))
     return render_template("profile_edit.html", user=user)
 
@@ -1625,6 +1638,201 @@ def set_mood():
     conn.close()
     flash("Mood updated!", "success")
     return redirect(url_for("profile"))
+
+
+# ---------------------------------------------------------------------------
+# v0.5.0: Admin Disk Usage
+# ---------------------------------------------------------------------------
+
+@app.route("/admin/disk")
+@login_required
+def admin_disk():
+    if g.current_user.get("role") != "admin":
+        abort(403)
+    import subprocess
+    db_size = os.path.getsize(os.path.join(BASE_DIR, DATABASE_PATH)) if os.path.exists(os.path.join(BASE_DIR, DATABASE_PATH)) else 0
+    uploads_dir = os.path.join(BASE_DIR, "static", "uploads")
+    uploads_size = 0
+    uploads_count = 0
+    if os.path.isdir(uploads_dir):
+        for root, dirs, files in os.walk(uploads_dir):
+            uploads_count += len(files)
+            for f in files:
+                fp = os.path.join(root, f)
+                uploads_size += os.path.getsize(fp)
+    conn = database.get_connection()
+    stats = conn.execute("""
+        SELECT
+            (SELECT COUNT(*) FROM users) as user_count,
+            (SELECT COUNT(*) FROM posts) as post_count,
+            (SELECT COUNT(*) FROM posts WHERE photo_url IS NOT NULL) as photo_count,
+            (SELECT COUNT(*) FROM posts WHERE video_url IS NOT NULL) as video_count,
+            (SELECT COUNT(*) FROM posts WHERE voice_url IS NOT NULL) as voice_count
+    """).fetchone()
+    conn.close()
+    return render_template("admin_disk.html", db_size=db_size, uploads_size=uploads_size,
+                           uploads_count=uploads_count, stats=stats)
+
+
+# ---------------------------------------------------------------------------
+# v0.5.0: Achievements
+# ---------------------------------------------------------------------------
+
+@app.route("/achievements")
+@login_required
+def achievements():
+    all_ach = database.get_achievements()
+    user_ach = {a["achievement_id"]: a for a in database.get_user_achievements(g.current_user["id"])}
+    return render_template("achievements.html", achievements=all_ach, user_achievements=user_ach)
+
+
+@app.route("/achievements/mark_seen", methods=["POST"])
+@login_required
+def mark_achievements_seen():
+    conn = database.get_connection()
+    conn.execute(
+        "UPDATE user_achievements SET is_seen = 1 WHERE user_id = ?",
+        (g.current_user["id"],),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# v0.5.0: Community Guidelines
+# ---------------------------------------------------------------------------
+
+@app.route("/guidelines")
+def guidelines():
+    return render_template("guidelines.html")
+
+
+@app.route("/guidelines/accept", methods=["POST"])
+@login_required
+def accept_guidelines():
+    database.update_user(g.current_user["id"], {
+        "accepted_guidelines_at": datetime.now(timezone.utc).isoformat()
+    })
+    flash("Community guidelines accepted.", "success")
+    return redirect(url_for("feed"))
+
+
+# ---------------------------------------------------------------------------
+# v0.5.0: Stripe Donations (optional)
+# ---------------------------------------------------------------------------
+
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID", "")
+
+@app.route("/donate")
+def donate():
+    return render_template("donate.html", enabled=bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID))
+
+
+@app.route("/donate/checkout", methods=["POST"])
+def donate_checkout():
+    if not STRIPE_SECRET_KEY or not STRIPE_PRICE_ID:
+        abort(404)
+    import stripe
+    stripe.api_key = STRIPE_SECRET_KEY
+    checkout_session = stripe.checkout.Session.create(
+        line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
+        mode="payment",
+        success_url=request.host_url + "donate/success",
+        cancel_url=request.host_url + "donate/cancel",
+    )
+    return redirect(checkout_session.url, code=303)
+
+
+@app.route("/donate/success")
+def donate_success():
+    return render_template("donate_result.html", success=True)
+
+
+@app.route("/donate/cancel")
+def donate_cancel():
+    return render_template("donate_result.html", success=False)
+
+
+# ---------------------------------------------------------------------------
+# v0.5.0: Backup
+# ---------------------------------------------------------------------------
+
+import shutil
+import tarfile
+
+@app.route("/admin/backup", methods=["GET", "POST"])
+@login_required
+def admin_backup():
+    if g.current_user.get("role") != "admin":
+        abort(403)
+    if request.method == "POST":
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        backup_dir = os.path.join(BASE_DIR, "backups", timestamp)
+        os.makedirs(backup_dir, exist_ok=True)
+        # SQLite dump
+        db_path = os.path.join(BASE_DIR, DATABASE_PATH)
+        dump_path = os.path.join(backup_dir, "social.sql")
+        conn = sqlite3.connect(db_path)
+        with open(dump_path, "w") as f:
+            for line in conn.iterdump():
+                f.write(line + "\n")
+        conn.close()
+        # Uploads tar
+        uploads_dir = os.path.join(BASE_DIR, "static", "uploads")
+        tar_path = os.path.join(backup_dir, "uploads.tar.gz")
+        if os.path.isdir(uploads_dir):
+            with tarfile.open(tar_path, "w:gz") as tar:
+                tar.add(uploads_dir, arcname="uploads")
+        # Final tar
+        final_tar = os.path.join(BASE_DIR, "backups", f"backup_{timestamp}.tar.gz")
+        with tarfile.open(final_tar, "w:gz") as tar:
+            tar.add(backup_dir, arcname=timestamp)
+        size = os.path.getsize(final_tar)
+        database.log_backup(os.path.basename(final_tar), size, g.current_user["id"])
+        # Cleanup old backups (keep last 7)
+        backups = sorted([
+            f for f in os.listdir(os.path.join(BASE_DIR, "backups"))
+            if f.startswith("backup_") and f.endswith(".tar.gz")
+        ])
+        for old in backups[:-7]:
+            os.remove(os.path.join(BASE_DIR, "backups", old))
+        flash("Backup created successfully.", "success")
+        return redirect(url_for("admin_backup"))
+    backups = database.list_backups()
+    return render_template("admin_backup.html", backups=backups)
+
+
+# ---------------------------------------------------------------------------
+# v0.5.0: Post Series
+# ---------------------------------------------------------------------------
+
+@app.route("/series/new", methods=["GET", "POST"])
+@login_required
+def new_series():
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        description = request.form.get("description", "").strip()
+        if not title:
+            flash("Title is required.", "danger")
+            return redirect(url_for("new_series"))
+        sid = database.create_series(g.current_user["id"], title, description)
+        flash("Series created!", "success")
+        return redirect(url_for("view_series", series_id=sid))
+    return render_template("new_series.html")
+
+
+@app.route("/series/<int:series_id>")
+@login_required
+def view_series(series_id):
+    conn = database.get_connection()
+    series = conn.execute("SELECT * FROM post_series WHERE id = ?", (series_id,)).fetchone()
+    conn.close()
+    if not series:
+        abort(404)
+    posts = database.get_series_posts(series_id)
+    return render_template("series.html", series=dict(series), posts=posts)
 
 
 # ---------------------------------------------------------------------------

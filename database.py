@@ -541,6 +541,103 @@ def init_database():
     if "group_id" not in msg_cols:
         cursor.execute("ALTER TABLE messages ADD COLUMN group_id INTEGER")
 
+    # v0.5.0: Profile bio
+    cursor.execute("PRAGMA table_info(users)")
+    user_cols = {r[1] for r in cursor.fetchall()}
+    for col, ddl in [
+        ("bio", "ALTER TABLE users ADD COLUMN bio TEXT"),
+        ("accepted_guidelines_at", "ALTER TABLE users ADD COLUMN accepted_guidelines_at TEXT"),
+        ("current_streak", "ALTER TABLE users ADD COLUMN current_streak INTEGER DEFAULT 0"),
+        ("longest_streak", "ALTER TABLE users ADD COLUMN longest_streak INTEGER DEFAULT 0"),
+        ("last_post_date", "ALTER TABLE users ADD COLUMN last_post_date TEXT"),
+    ]:
+        if col not in user_cols:
+            cursor.execute(ddl)
+
+    # v0.5.0: Achievements
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            icon TEXT,
+            category TEXT DEFAULT 'general',
+            threshold INTEGER DEFAULT 1
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            achievement_id INTEGER NOT NULL,
+            unlocked_at TEXT NOT NULL DEFAULT (datetime('now')),
+            is_seen INTEGER DEFAULT 0,
+            UNIQUE(user_id, achievement_id)
+        )
+    """)
+    # v0.5.0: User activity (daily post counts for graph)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_activity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            activity_date TEXT NOT NULL,
+            post_count INTEGER DEFAULT 0,
+            UNIQUE(user_id, activity_date)
+        )
+    """)
+    # v0.5.0: Backups log
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS backups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT NOT NULL,
+            size_bytes INTEGER,
+            created_by INTEGER,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.5.0: Post series (grouped posts like chapters)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS post_series (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS series_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            series_id INTEGER NOT NULL,
+            post_id INTEGER NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            UNIQUE(series_id, post_id)
+        )
+    """)
+    # Seed achievements if empty
+    ach_count = cursor.execute("SELECT COUNT(*) as c FROM achievements").fetchone()
+    if ach_count and ach_count["c"] == 0:
+        achievements = [
+            ("first_steps", "First Steps", "Create your first post.", "🌱", "milestone", 1),
+            ("social_butterfly", "Social Butterfly", "Accept 10 friend requests.", "🦋", "connection", 10),
+            ("deep_connector", "Deep Connector", "Send 50 direct messages.", "💬", "connection", 50),
+            ("healthy_habit", "Healthy Habit", "Post on 7 consecutive days.", "🌿", "wellness", 7),
+            ("digital_detox", "Digital Detox Champion", "Take a 3+ day break, then return and post.", "🧘", "wellness", 1),
+            ("community_builder", "Community Builder", "Create an event with 5+ RSVPs.", "🏘️", "connection", 1),
+            ("thoughtful_responder", "Thoughtful Responder", "Comment on 20 different friends' posts.", "💭", "wellness", 20),
+            ("memory_keeper", "Memory Keeper", "Create 3 photo albums.", "📸", "milestone", 3),
+            ("storyteller", "Storyteller", "Publish 10 ephemeral stories.", "📖", "milestone", 10),
+            ("poll_master", "Poll Master", "Create 5 polls receiving 10+ votes each.", "📊", "milestone", 5),
+            ("helper", "Helper", "Answer 10 daily prompts or ice breakers.", "🤝", "wellness", 10),
+            ("verified_human", "Verified Human", "Complete your profile.", "✅", "milestone", 1),
+            ("long_term_friend", "Long-Term Friend", "Reach a 1-year friend-versary.", "🤝", "connection", 1),
+        ]
+        cursor.executemany(
+            "INSERT INTO achievements (slug, name, description, icon, category, threshold) VALUES (?, ?, ?, ?, ?, ?)",
+            achievements
+        )
+
     conn.commit()
     conn.close()
     print("Database initialized.")
@@ -1743,6 +1840,240 @@ def get_upcoming_birthdays(user_id: int, days_ahead: int = 7) -> List[Dict[str, 
              )
            ORDER BY u.birthday_month, u.birthday_day""",
         (user_id, user_id, days_ahead),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# v0.5.0: Achievements + Streaks + Activity
+# ---------------------------------------------------------------------------
+
+def get_achievements() -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM achievements ORDER BY category, name").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_user_achievements(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT a.*, ua.unlocked_at, ua.is_seen
+           FROM achievements a
+           JOIN user_achievements ua ON ua.achievement_id = a.id
+           WHERE ua.user_id = ?
+           ORDER BY ua.unlocked_at DESC""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def award_achievement(user_id: int, slug: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    ach = conn.execute("SELECT id FROM achievements WHERE slug = ?", (slug,)).fetchone()
+    if not ach:
+        conn.close()
+        return False
+    existing = conn.execute(
+        "SELECT id FROM user_achievements WHERE user_id = ? AND achievement_id = ?",
+        (user_id, ach["id"]),
+    ).fetchone()
+    if existing:
+        conn.close()
+        return False
+    cursor.execute(
+        "INSERT INTO user_achievements (user_id, achievement_id) VALUES (?, ?)",
+        (user_id, ach["id"]),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def check_and_award_achievements(user_id: int) -> List[str]:
+    """Check all achievement conditions and award any newly earned."""
+    conn = get_connection()
+    awarded = []
+    # First Steps
+    post_count = conn.execute("SELECT COUNT(*) as c FROM posts WHERE user_id = ?", (user_id,)).fetchone()["c"]
+    if post_count >= 1:
+        if award_achievement(user_id, "first_steps"):
+            awarded.append("first_steps")
+    # Social Butterfly
+    friend_count = conn.execute(
+        "SELECT COUNT(*) as c FROM friendships WHERE status = 'accepted' AND (requester_id = ? OR addressee_id = ?)",
+        (user_id, user_id),
+    ).fetchone()["c"]
+    if friend_count >= 10:
+        if award_achievement(user_id, "social_butterfly"):
+            awarded.append("social_butterfly")
+    # Deep Connector
+    dm_count = conn.execute(
+        "SELECT COUNT(*) as c FROM messages WHERE sender_id = ?", (user_id,)
+    ).fetchone()["c"]
+    if dm_count >= 50:
+        if award_achievement(user_id, "deep_connector"):
+            awarded.append("deep_connector")
+    # Memory Keeper
+    album_count = conn.execute("SELECT COUNT(*) as c FROM albums WHERE user_id = ?", (user_id,)).fetchone()["c"]
+    if album_count >= 3:
+        if award_achievement(user_id, "memory_keeper"):
+            awarded.append("memory_keeper")
+    # Storyteller
+    story_count = conn.execute("SELECT COUNT(*) as c FROM stories WHERE user_id = ?", (user_id,)).fetchone()["c"]
+    if story_count >= 10:
+        if award_achievement(user_id, "storyteller"):
+            awarded.append("storyteller")
+    # Verified Human
+    user = conn.execute(
+        "SELECT has_onboarded, bio, avatar_url, birthday_month, birthday_day FROM users WHERE id = ?",
+        (user_id,),
+    ).fetchone()
+    if user and user["has_onboarded"] and user["bio"] and user["avatar_url"] and user["birthday_month"]:
+        if award_achievement(user_id, "verified_human"):
+            awarded.append("verified_human")
+    conn.close()
+    return awarded
+
+
+def record_user_activity(user_id: int, date_str: str = None) -> None:
+    """Increment post count for a given date."""
+    if date_str is None:
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    conn = get_connection()
+    cursor = conn.cursor()
+    existing = conn.execute(
+        "SELECT id, post_count FROM user_activity WHERE user_id = ? AND activity_date = ?",
+        (user_id, date_str),
+    ).fetchone()
+    if existing:
+        cursor.execute(
+            "UPDATE user_activity SET post_count = ? WHERE id = ?",
+            (existing["post_count"] + 1, existing["id"]),
+        )
+    else:
+        cursor.execute(
+            "INSERT INTO user_activity (user_id, activity_date, post_count) VALUES (?, ?, 1)",
+            (user_id, date_str),
+        )
+    conn.commit()
+    conn.close()
+
+
+def get_user_activity(user_id: int, days: int = 365) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM user_activity WHERE user_id = ? AND activity_date >= date('now', '-' || ? || ' days') ORDER BY activity_date",
+        (user_id, days),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_streak(user_id: int) -> None:
+    """Update posting streak based on last_post_date."""
+    conn = get_connection()
+    user = conn.execute(
+        "SELECT last_post_date, current_streak, longest_streak FROM users WHERE id = ?",
+        (user_id,),
+    ).fetchone()
+    if not user:
+        conn.close()
+        return
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    last = user["last_post_date"]
+    current = user["current_streak"] or 0
+    longest = user["longest_streak"] or 0
+    if last == today:
+        conn.close()
+        return
+    yesterday = (datetime.now(timezone.utc) - __import__("datetime").timedelta(days=1)).strftime("%Y-%m-%d")
+    if last == yesterday:
+        current += 1
+    else:
+        current = 1
+    if current > longest:
+        longest = current
+    conn.execute(
+        "UPDATE users SET current_streak = ?, longest_streak = ?, last_post_date = ? WHERE id = ?",
+        (current, longest, today, user_id),
+    )
+    conn.commit()
+    conn.close()
+    # Award healthy habit if streak >= 7
+    if current >= 7:
+        award_achievement(user_id, "healthy_habit")
+
+
+# ---------------------------------------------------------------------------
+# v0.5.0: Backups
+# ---------------------------------------------------------------------------
+
+def log_backup(filename: str, size_bytes: int, created_by: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO backups (filename, size_bytes, created_by) VALUES (?, ?, ?)",
+        (filename, size_bytes, created_by),
+    )
+    bid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return bid
+
+
+def list_backups(limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM backups ORDER BY created_at DESC LIMIT ?", (limit,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# v0.5.0: Post Series
+# ---------------------------------------------------------------------------
+
+def create_series(user_id: int, title: str, description: str = "") -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO post_series (user_id, title, description) VALUES (?, ?, ?)",
+        (user_id, title, description),
+    )
+    sid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return sid
+
+
+def add_post_to_series(series_id: int, post_id: int, sort_order: int = 0) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO series_posts (series_id, post_id, sort_order) VALUES (?, ?, ?)",
+        (series_id, post_id, sort_order),
+    )
+    spid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return spid
+
+
+def get_series_posts(series_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT p.*, u.username, u.display_name, u.avatar_url, sp.sort_order
+           FROM posts p
+           JOIN series_posts sp ON sp.post_id = p.id
+           JOIN users u ON u.id = p.user_id
+           WHERE sp.series_id = ?
+           ORDER BY sp.sort_order, p.created_at""",
+        (series_id,),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
