@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Offline — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>You're Offline</h2>
+  <p>You appear to be without an internet connection right now. Here are some things you can still do:</p>
+  <ul>
+    <li>View previously loaded feed posts</li>
+    <li>Browse your saved bookmarks</li>
+    <li>Read the Help Center (if cached)</li>
+  </ul>
+  <p><button class="btn btn-primary" onclick="window.location.reload();">Try Again</button></p>
+</div>
+{% endblock %}

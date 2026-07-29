@@ -9,91 +9,76 @@ Think of it as your living room online: warm, secure, and yours to customize.
 Whether you're sharing a photo from last weekend, organizing a potluck, or just
 checking in on friends, this is a place built for *real* community.
 
+Now containerized, real-time, installable on your phone, and hardened against
+the quantum computing revolution. Because the future is coming — and your data
+should be ready.
+
 ---
 
 ## What Makes It Sparkle
 
-- **Friends-Only by Default** — Every post is visible only to accepted friends.
-  No public option. No algorithmic amplification. Just human connection, the
-  way it was meant to be.
-- **Emoji Reactions** — Heart, laugh, wow, sad, fire. Express yourself beyond
-  the like button.
-- **Events & RSVPs** — Plan gatherings, send invites, track who's coming.
-  Your community calendar, built right in.
+### Core (v0.1.0)
+- **Friends-Only by Default** — Every post visible only to accepted friends.
+- **Blockchain Audit Log** — SHA-256 hash chain. Tamper-evident. Try to edit
+  the database behind the scenes? The chain breaks and we know.
+- **Agent Moderation** — Automated keyword + pattern filter. Clean posts pass.
+  Flagged ones hit a human review queue. Toxic content never reaches your feed.
+- **Hermes Agent Bridge** — Connect your Hermes agent via secure webhook.
+  Moderate, notify, summarize. Your AI assistant helps run the community.
+
+### Deep Social (v0.2.0)
+- **Events & RSVPs** — Plan gatherings with date, location, attendee tracking.
+- **Polls** — Ask questions, vote, see results. Democracy in microcosm.
 - **Friend Circles** — Create custom groups (Family, Work, Hobby) and share
   posts with exactly the right people.
-- **Polls** — Ask questions, get votes, see results. Democracy in action.
-- **Bookmarks** — Save posts to revisit later. Your personal highlights reel.
-- **@Mentions** — Tag friends in posts and comments. They'll know you thought of them.
-- **Direct Messages** — Chat one-on-one with friends. Simple, private, no noise.
-- **Notifications Center** — Stay in the loop without getting overwhelmed.
-  Mark read, dismiss, filter by type.
-- **Search** — Find people, posts, and pages across the platform. Fast and local.
-- **Hashtags** — Discover conversations around topics. Click to explore.
-- **Discover & Suggested Friends** — Meet new people through mutual connections.
-  Spot the newcomers with the "Recently Joined" spotlight.
-- **Mutual Friends** — See how you're connected before reaching out. Builds trust.
-- **Post Analytics** — Authors see views, reactions, comments, and shares on
-  their own content. Knowledge is power.
-- **Content Warnings** — Add spoiler/sensitive tags. Viewers choose to reveal.
-  Respectful sharing.
-- **Pinned Posts** — Pin your best post to the top of your profile.
-  Make your first impression count.
-- **Post Sharing / Reposting** — Amplify friends' posts with attribution.
-  Spread the good stuff.
-- **Drafts** — Auto-save as you write. Never lose a thought.
-- **Post Scheduling** — Write now, publish later. Plan your content calendar.
+- **Emoji Reactions** — Heart ❤️, laugh 😂, wow 😮, sad 😢, fire 🔥.
+- **Bookmarks** — Save posts to revisit later.
+- **@Mentions** — Tag friends in posts and comments.
+- **Direct Messages** — Friends-only chat. Block-aware.
+- **Notifications Center** — Badge counts, mark read, filter by type.
+- **Search** — Users, posts, pages. Fast and local.
+- **Hashtags** — Discover conversations around topics.
+- **Discover & Mutual Friends** — Meet people through mutual connections.
+- **Post Analytics** — Author-only views, reactions, comments, shares.
+- **Content Warnings** — Spoiler tags with click-to-reveal.
+- **Onboarding, Help Center, Password Reset, Theme, Export, Deactivation**
 
-### Safety & Trust
-
-- **Agent Moderation** — An automated keyword + pattern filter scores every
-  post. Clean posts flow through. Flagged ones land in a human review queue.
-  Toxic content never reaches your feed.
-- **Blockchain Audit Log** — Every post, like, comment, and moderation action
-  is recorded in a tamper-evident hash chain. If anyone tries to edit the
-  database behind the scenes, the chain breaks and we know.
-- **Hermes Agent Bridge** — Connect your Hermes agent to moderate, notify,
-  or summarize activity via a secure webhook. Your AI assistant can help
-  run the community.
-
-### Power Features
-
-- **Dark Mode** — Toggle between light and dark themes. Easy on the eyes,
-  day or night. Customize your accent color too.
-- **Accessibility First** — Skip links, ARIA labels, focus-visible outlines,
-  and keyboard navigation throughout. Everyone is welcome.
-- **Welcome / Onboarding Flow** — New users get a 4-step wizard: upload avatar,
-  write bio, find friends, create first post. Skip anytime.
-- **Help Center** — Comprehensive FAQ covering Getting Started, Privacy,
-  Moderation, and Account management.
-- **Password Reset** — Secure token-based reset. Tokens expire in 1 hour.
-- **Theme Customization** — Pick your mode (light/dark) and accent color.
-  Your platform, your style.
-- **Export Data** — Download all your data as JSON. Portability is a right.
-- **Account Deactivation** — Soft-delete anonymizes posts and hides your profile.
-  Reactivate anytime by logging back in.
-- **Invite Links** — Generate token-based invites with usage limits. Grow your
-  community securely.
-- **Feed Sort: Most Engaged** — New algorithmic sort that surfaces the posts
-  your friends are talking about most. Engagement + recency = relevance.
+### Infrastructure & Future-Proofing (v0.3.0)
+- **Docker Ready** — Multi-stage Dockerfile + `docker-compose.yml`. Non-root
+  user, `uv` for fast installs, health checks, `gunicorn` with 4 workers.
+  `docker compose up` and you're live.
+- **WebSocket Real-Time** — `flask-socketio` with `threading` async mode.
+  Live DM delivery with typing indicators. Real-time notification pushes.
+  Reactions update instantly for all viewers. New posts appear at feed top
+  live. Auth-gated connections only.
+- **Progressive Web App (PWA)** — `manifest.json`, `service-worker.js` with
+  cache-first static + network-first API strategy. Offline fallback page.
+  Push notification permission. Install prompt support. Theme-aware splash
+  screen. Works offline when network drops.
+- **Quantum-Safe Passwords** — Argon2id (memory-hard, 65 MB per hash, 3
+  iterations, parallelism=1). Transparently migrates PBKDF2 hashes on next
+  login. Because post-quantum security starts with the passwords you store
+  today.
 
 ---
 
 ## Quick Start
 
+### Local (development)
 ```bash
 git clone https://github.com/drwjkirkpatrick-web/mini-social-media.git
 cd mini-social-media
-
-# Create a virtual environment
 uv venv
 uv pip install -r requirements.txt
-
-# Run the server
 .venv/bin/python app.py
+# Open http://127.0.0.1:9197
 ```
 
-Then open `http://127.0.0.1:9197` in your browser.
+### Docker (production)
+```bash
+docker compose up --build
+# Open http://localhost:9197
+```
 
 **First time?** Click "First time here?" on the login page for a guided tour.
 
@@ -110,13 +95,16 @@ create_user("admin", "admin@example.com", hash_password("changeme"), role="admin
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Flask + Werkzeug |
+| Backend | Flask + Werkzeug + Gunicorn |
+| Real-Time | Flask-SocketIO (threading async) |
 | Database | SQLite (WAL mode, foreign keys) |
-| Auth | PBKDF2 salted password hashing |
+| Auth | PBKDF2 (legacy) + Argon2id (default, quantum-safe) |
 | Photos | Werkzeug secure_filename + timestamp prefix |
 | Moderation | Configurable keyword + regex scoring |
 | Audit | SHA-256 hash chain with nonce |
-| Tests | pytest (95 tests, all passing) |
+| Deployment | Docker + Docker Compose |
+| PWA | Web App Manifest + Service Worker |
+| Tests | pytest (106 tests, all passing) |
 
 ---
 
@@ -124,20 +112,26 @@ create_user("admin", "admin@example.com", hash_password("changeme"), role="admin
 
 ```
 mini-social-media/
-├── app.py                 # Flask app: routes, auth, uploads, moderation
-├── database.py            # SQLite schema (20+ tables) + CRUD functions
+├── app.py                 # Flask app + SocketIO + 80+ routes
+├── database.py            # SQLite schema (20+ tables) + CRUD
 ├── blockchain.py          # Tamper-evident audit hash chain
-├── auth.py                # Password hashing + login decorators
+├── auth.py                # PBKDF2 + Argon2id hashing
 ├── config.py              # Environment-based configuration
 ├── feed.py                # Privacy-aware feed engine (3 sort modes)
 ├── uploads.py             # Multi-format photo upload handler
 ├── moderation.py          # Agent moderation scoring
-├── templates/              # 25+ Jinja2 HTML templates
-├── static/uploads/         # User photo storage
-├── tests/                  # 50 pytest test files
+├── templates/              # 27 Jinja2 HTML templates
+├── static/
+│   ├── uploads/            # User photo storage
+│   └── sw.js               # PWA service worker
+├── Dockerfile              # Multi-stage build
+├── docker-compose.yml      # Compose stack
+├── gunicorn.conf.py        # Production server config
 ├── requirements.txt
-├── PROMPTS.md              # 30 original build prompts
-├── PROMPTS_v2.md           # 30 new module prompts
+├── PROMPTS.md              # 30 original prompts
+├── PROMPTS_v2.md           # 30 v0.2.0 prompts
+├── PROMPTS_v3.md           # 30 v0.3.0 prompts
+├── tests/                  # 53 pytest test files
 └── README.md
 ```
 
@@ -165,9 +159,9 @@ All settings load from environment variables with sensible defaults:
 .venv/bin/python -m pytest tests/ -v
 ```
 
-95 tests covering:
+106 tests covering:
 - Database schema, connection layer, CRUD
-- Password hashing (PBKDF2)
+- Password hashing (PBKDF2 + Argon2id) + transparent migration
 - Session management + rate limiting
 - Signup / login / logout / onboarding
 - Post creation (text, link, photo) + content warnings
@@ -196,6 +190,9 @@ All settings load from environment variables with sensible defaults:
 - Data export
 - Account deactivation
 - Invite links
+- Health check + password hash audit
+- PWA manifest + service worker
+- Docker file presence
 - Full end-to-end integration flow
 
 ---
@@ -210,9 +207,25 @@ All settings load from environment variables with sensible defaults:
 | DM access | Friends only | — |
 | Data storage | Local server only | — |
 | Analytics | None (author-only stats) | — |
+| Password hashes | Argon2id (quantum-safe) | Auto-migrated from PBKDF2 |
 
 No cookies from third parties. No tracking pixels. No external APIs
 unless you configure them.
+
+---
+
+## Quantum-Safe Passwords
+
+We use **Argon2id** (memory-hard, 65 MB per hash) instead of PBKDF2.
+Why does this matter for quantum safety? Shor's algorithm and Grover's
+algorithm threaten *public-key* and *fast hash* systems. Argon2id's
+memory hardness cannot be shortcut by quantum parallelism. Even when
+quantum computers crack RSA and ECC, your Argon2id hashes remain
+computationally expensive to reverse.
+
+Legacy PBKDF2 hashes are transparently re-hashed to Argon2id on next login.
+No user action required. Check migration progress at the admin-only
+`/health/passwords` endpoint.
 
 ---
 
@@ -230,31 +243,62 @@ Supported actions: `moderate`, `notify`, `summarize`.
 
 ---
 
-## What's New in v0.2.0
+## Docker
 
-- 30 new modules: Events, Polls, Circles, Reactions, Bookmarks, Mentions,
-  DMs, Notifications, Search, Hashtags, Discover, Mutual Friends, Analytics,
-  Content Warnings, Export, Deactivation, Theme, Invite Links, and more.
-- Dark mode + accent color customization
-- Accessibility improvements (skip links, ARIA, focus-visible)
-- 4-step welcome onboarding for new users
-- Comprehensive Help Center
-- Password reset flow
-- Engaged feed sort algorithm
-- 95 total tests (up from 68)
+```bash
+# Build and run
+docker compose up --build
+
+# Scale workers (edit gunicorn.conf.py)
+docker compose restart
+
+# Check health
+curl http://localhost:9197/health
+```
+
+The Dockerfile uses a non-root `appuser`, multi-stage build with `uv`,
+and a health check that polls the `/health` endpoint every 30 seconds.
+
+---
+
+## PWA: Install on Your Phone
+
+1. Open the site in Chrome / Safari / Firefox
+2. Tap "Add to Home Screen" (or accept the prompt banner)
+3. The app launches standalone — no browser chrome
+4. Works offline: cached pages, offline fallback, sync on reconnect
+
+---
+
+## WebSocket Real-Time
+
+Connect to `ws://localhost:9197/socket.io/` with auth session. Events:
+- `new_message` — incoming DM
+- `new_like` — someone liked your post
+- `new_comment` — someone commented on your post
+- `new_post` — friend published a new post
+- `reaction_update` — reaction count changed on a post you're viewing
+
+---
+
+## Version History
+
+| Version | Highlights |
+|---------|-----------|
+| **v0.1.0** | Core platform: auth, posts, feed, friends, likes, comments, photos, pages, blockchain, moderation, dashboard, Hermes bridge |
+| **v0.2.0** | 30 new modules: events, polls, circles, reactions, bookmarks, mentions, DMs, notifications, search, hashtags, discover, mutual friends, analytics, content warnings, export, deactivation, theme, invite links, onboarding, help center, password reset, engaged sort |
+| **v0.3.0** | Docker, WebSocket real-time, PWA, quantum-safe Argon2id passwords, health checks, service worker, offline support |
 
 ---
 
 ## Roadmap
 
-- [ ] Docker containerization
 - [ ] PostgreSQL backend for >100 users
-- [ ] WebSocket real-time notifications
-- [ ] Mobile-responsive PWA
-- [ ] Federation protocol (ActivityPub)
+- [ ] WebSocket push notifications to background PWA
 - [ ] End-to-end encrypted DMs
 - [ ] 2FA with TOTP
-- [ ] Voice messages (no video!)
+- [ ] Federation protocol (ActivityPub)
+- [ ] Voice messages (still no video!)
 
 ---
 

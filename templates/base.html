@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="{{ current_user.accent_color|default('#4a90d9') }}">
+  <link rel="manifest" href="/manifest.json">
   <title>{% block title %}mini-social-media{% endblock %}</title>
   <style>
     :root {
@@ -107,10 +109,19 @@
     </div>
   </footer>
   <script>
+    // Service worker registration for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js');
+    }
+    // Dark mode toggle from localStorage
     (function() {
       var saved = localStorage.getItem('theme');
       if (saved) document.documentElement.setAttribute('data-theme', saved);
     })();
+    // Push notification permission (optional)
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
   </script>
 </body>
 </html>

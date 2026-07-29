@@ -12,6 +12,7 @@ from flask import (
     Flask, render_template, request, redirect, url_for, flash,
     session, abort, jsonify, send_from_directory,
 )
+from flask_socketio import SocketIO, emit, join_room, leave_room
 
 # Local modules
 import database
@@ -29,6 +30,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"))
 app.config["SECRET_KEY"] = get_config().secret_key
 app.config["MAX_CONTENT_LENGTH"] = get_config().max_file_size_mb * 1024 * 1024
+
+# SocketIO — async_mode='threading' avoids eventlet/gevent dependency
+socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*")
 
 # Ensure DB exists before first request
 @app.before_request
@@ -651,6 +655,14 @@ def login():
 
         user = database.get_user_by_username(identifier) or database.get_user_by_email(identifier)
         if user and verify_password(password, user["password_hash"]):
+            # Transparent migration to Argon2id if still on PBKDF2
+            from auth import needs_rehash
+            if needs_rehash(user["password_hash"]):
+                conn = database.get_connection()
+                from auth import hash_password
+                conn.execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(password), user["id"]))
+                conn.commit()
+                conn.close()
             session.clear()
             session["user_id"] = user["id"]
             session["role"] = user["role"]
@@ -843,6 +855,10 @@ def create_post():
 def like_post_route(post_id):
     user = _current_user()
     database.like_post(user["id"], post_id)
+    # Real-time notification to post author
+    post = database.get_post(post_id)
+    if post and post["user_id"] != user["id"]:
+        _emit_notification(post["user_id"], "new_like", {"post_id": post_id, "liker_name": user["display_name"] or user["username"]})
     return redirect(url_for("feed"))
 
 
@@ -856,6 +872,10 @@ def comment_route(post_id):
         return redirect(url_for("feed"))
     try:
         database.add_comment(user["id"], post_id, text)
+        # Real-time notification to post author
+        post = database.get_post(post_id)
+        if post and post["user_id"] != user["id"]:
+            _emit_notification(post["user_id"], "new_comment", {"post_id": post_id, "commenter_name": user["display_name"] or user["username"]})
     except ValueError as e:
         flash(str(e), "error")
     return redirect(url_for("feed"))
@@ -1110,6 +1130,119 @@ def hermes_webhook():
     return jsonify(result)
 
 
+@app.route("/health")
+def health():
+    db_ok = True
+    try:
+        conn = database.get_connection()
+        conn.execute("SELECT 1")
+        conn.close()
+    except Exception:
+        db_ok = False
+    status = 200 if db_ok else 503
+    return jsonify({
+        "status": "ok" if db_ok else "error",
+        "db": "connected" if db_ok else "disconnected",
+        "version": "0.3.0",
+    }), status
+
+
+@app.route("/health/passwords")
+@admin_required
+def health_passwords():
+    conn = database.get_connection()
+    pbkdf2 = conn.execute(
+        "SELECT COUNT(*) as c FROM users WHERE password_hash LIKE 'pbkdf2:%'"
+    ).fetchone()["c"]
+    argon = conn.execute(
+        "SELECT COUNT(*) as c FROM users WHERE password_hash LIKE '$argon2id%'"
+    ).fetchone()["c"]
+    conn.close()
+    return jsonify({"pbkdf2": pbkdf2, "argon2id": argon, "recommendation": "Continue migration to Argon2id"})
+
+
+# ---------------------------------------------------------------------------
+# PWA
+# ---------------------------------------------------------------------------
+
+@app.route("/manifest.json")
+def manifest():
+    return jsonify({
+        "name": "mini-social-media",
+        "short_name": "MiniSocial",
+        "start_url": "/feed",
+        "display": "standalone",
+        "background_color": "#f5f7fa",
+        "theme_color": "#4a90d9",
+        "icons": [
+            {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
+        ],
+    })
+
+
+@app.route("/sw.js")
+def service_worker():
+    return send_from_directory(os.path.join(BASE_DIR, "static"), "sw.js", mimetype="application/javascript")
+
+
+@app.route("/offline")
+def offline_page():
+    return render_template("offline.html")
+
+
+# ---------------------------------------------------------------------------
+# WebSocket (SocketIO)
+# ---------------------------------------------------------------------------
+
+@socketio.on("connect")
+def handle_connect():
+    uid = session.get("user_id")
+    if not uid:
+        return False  # reject anonymous
+    join_room(f"user_{uid}")
+    emit("connected", {"room": f"user_{uid}"})
+
+
+@socketio.on("disconnect")
+def handle_disconnect():
+    uid = session.get("user_id")
+    if uid:
+        leave_room(f"user_{uid}")
+
+
+@socketio.on("send_message")
+def handle_send_message(data):
+    uid = session.get("user_id")
+    if not uid:
+        return
+    recipient_id = data.get("recipient_id")
+    content = data.get("content", "").strip()
+    if not recipient_id or not content:
+        return
+    # Validate friendship
+    friendship = database.get_friendship(uid, recipient_id)
+    if not (friendship and friendship["status"] == "accepted"):
+        emit("error", {"text": "You can only message friends."})
+        return
+    mid = database.send_message(uid, recipient_id, content)
+    # Notify recipient in real time
+    emit("new_message", {"id": mid, "sender_id": uid, "content": content}, room=f"user_{recipient_id}")
+    # Also notify sender for confirmation
+    emit("message_sent", {"id": mid}, room=f"user_{uid}")
+
+
+# ---------------------------------------------------------------------------
+# Helper: real-time notification emitter
+# ---------------------------------------------------------------------------
+
+def _emit_notification(user_id: int, event: str, data: dict):
+    try:
+        socketio.emit(event, data, room=f"user_{user_id}")
+    except Exception:
+        pass  # SocketIO not connected, silently ignore
+
+
 # ---------------------------------------------------------------------------
 # Static uploads serving
 # ---------------------------------------------------------------------------
@@ -1127,4 +1260,4 @@ if __name__ == "__main__":
     database.init_database()
     port = int(os.environ.get("PORT", 9197))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    app.run(host="127.0.0.1", port=port, debug=debug)
+    socketio.run(app, host="127.0.0.1", port=port, debug=debug, allow_unsafe_werkzeug=True)

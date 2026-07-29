@@ -7,16 +7,62 @@
     <h3>{{ other.display_name or other.username }}</h3>
   </div>
 </div>
+<div id="message-container">
 {% for msg in messages %}
-<div class="card" style="{% if msg.sender_id == session.user_id %}margin-left:auto;max-width:80%;background:rgba(74,144,217,0.1);{% else %}max-width:80%;{% endif %}">
+<div class="card msg-bubble" data-id="{{ msg.id }}" style="{% if msg.sender_id == session.user_id %}margin-left:auto;max-width:80%;background:rgba(74,144,217,0.1);{% else %}max-width:80%;{% endif %}">
   <p>{{ msg.content }}</p>
   <p class="meta">{{ msg.created_at }}{% if msg.sender_id == session.user_id and msg.is_read %} · Read{% endif %}</p>
 </div>
 {% endfor %}
+</div>
 <div class="card">
-  <form method="POST" style="display:flex;gap:0.5rem;">
-    <input type="text" name="content" placeholder="Write a message..." maxlength="2000" style="flex:1;" required>
+  <form id="msg-form" method="POST" style="display:flex;gap:0.5rem;">
+    <input type="text" id="msg-input" name="content" placeholder="Write a message..." maxlength="2000" style="flex:1;" required>
     <button type="submit" class="btn btn-primary">Send</button>
   </form>
 </div>
+<script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
+<script>
+  var socket = io();
+  var form = document.getElementById('msg-form');
+  var input = document.getElementById('msg-input');
+  var container = document.getElementById('message-container');
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    if (input.value.trim()) {
+      socket.emit('send_message', {recipient_id: {{ other.id }}, content: input.value.trim()});
+      input.value = '';
+    }
+  });
+
+  socket.on('new_message', function(data) {
+    var div = document.createElement('div');
+    div.className = 'card msg-bubble';
+    div.style.maxWidth = '80%';
+    var p = document.createElement('p');
+    p.textContent = data.content;
+    var meta = document.createElement('p');
+    meta.className = 'meta';
+    meta.textContent = 'Just now';
+    div.appendChild(p);
+    div.appendChild(meta);
+    container.appendChild(div);
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+
+  socket.on('message_sent', function(data) {
+    var div = document.createElement('div');
+    div.className = 'card msg-bubble';
+    div.style.marginLeft = 'auto';
+    div.style.maxWidth = '80%';
+    div.style.background = 'rgba(74,144,217,0.1)';
+    // Note: we don't have content here; it was already added optimistically by client
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+
+  socket.on('error', function(data) {
+    alert(data.text);
+  });
+</script>
 {% endblock %}
