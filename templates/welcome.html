@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Welcome — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Welcome! Let's set up your profile (Step {{ step }}/4)</h2>
+</div>
+<div class="card">
+  {% if step == 1 %}
+    <h3>1. Add a Profile Photo</h3>
+    <form method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="step" value="1">
+      <div class="form-group"><label for="avatar">Upload Avatar</label><input type="file" id="avatar" name="avatar" accept="image/*"></div>
+      <button type="submit" class="btn btn-primary">Next</button>
+      <a href="{{ url_for('welcome', step=2) }}" class="btn">Skip</a>
+    </form>
+  {% elif step == 2 %}
+    <h3>2. Write Your Bio</h3>
+    <form method="POST">
+      <input type="hidden" name="step" value="2">
+      <div class="form-group"><label for="bio">Bio</label><textarea id="bio" name="bio" rows="3" placeholder="Tell people about yourself..."></textarea></div>
+      <button type="submit" class="btn btn-primary">Next</button>
+      <a href="{{ url_for('welcome', step=3) }}" class="btn">Skip</a>
+    </form>
+  {% elif step == 3 %}
+    <h3>3. Find Friends</h3>
+    <p><a href="{{ url_for('discover') }}" class="btn btn-primary">Browse People</a></p>
+    <form method="POST">
+      <input type="hidden" name="step" value="3">
+      <button type="submit" class="btn btn-primary">Next</button>
+    </form>
+  {% elif step == 4 %}
+    <h3>4. Create Your First Post</h3>
+    <p><a href="{{ url_for('create_post') }}" class="btn btn-primary">Write a Post</a></p>
+    <form method="POST">
+      <input type="hidden" name="step" value="4">
+      <button type="submit" class="btn btn-primary">Finish Setup</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

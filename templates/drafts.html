@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Drafts — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>Your Drafts</h2></div>
+{% for post in posts %}
+<div class="card">
+  <p>{{ post.text_content or '[no text]' }}</p>
+  <p class="meta">Last updated: {{ post.updated_at }}</p>
+  <a href="{{ url_for('create_post') }}" class="btn btn-small">Resume Editing</a>
+</div>
+{% else %}
+<div class="card"><p class="meta">No drafts.</p></div>
+{% endfor %}
+{% endblock %}

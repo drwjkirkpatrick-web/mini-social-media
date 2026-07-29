@@ -1,7 +1,7 @@
 # Project State: mini-social-media
 
 > **Last updated:** 2026-07-28
-> **Current phase:** planning
+> **Current phase:** maintenance
 > **Overall health:** green
 
 ---
@@ -13,17 +13,19 @@ agent bridge.
 
 ## 2. Current Status
 ### Done
-- [x] Project directory created at `~/projects/mini-social-media/`
-- [x] 30 testable build prompts drafted in `PROMPTS.md`
+- [x] v0.1.0: Core platform (database, auth, posts, feed, friends, likes, comments, photos, pages, blockchain, moderation, dashboard, Hermes bridge)
+- [x] v0.2.0: 30 new modules (events, polls, circles, reactions, bookmarks, mentions, DMs, notifications, search, hashtags, discover, mutual friends, analytics, content warnings, export, deactivation, theme, invite links, engaged sort, onboarding, help center, password reset, dark mode, accessibility)
+- [x] 95 pytest tests, all passing
+- [x] GitHub repo created and pushed
 
 ### In Progress
-- [ ] Phase 1: Foundation (database, auth, signup)
+- [ ] —
 
 ### Not Started
-- [ ] Phase 2: Core Social (posts, feed, friends)
-- [ ] Phase 3: Media & Pages (photos, personal pages)
-- [ ] Phase 4: Advanced (moderation, blockchain, Hermes bridge, dashboard)
-- [ ] Phase 5: Polish (tests, README, GitHub repo)
+- [ ] Docker containerization
+- [ ] PostgreSQL backend
+- [ ] WebSocket real-time notifications
+- [ ] Mobile PWA
 
 ## 3. Architecture & Key Decisions
 | Decision | Rationale | Date |
@@ -34,24 +36,28 @@ agent bridge.
 | Agent moderation | Keyword + pattern filter, human review queue | 2026-07-28 |
 | Friends-only default | Privacy first — no public post option | 2026-07-28 |
 | Multi-format photos | jpg, png, gif, webp, heic support | 2026-07-28 |
+| Context processor for current_user | Enables theme and nav personalization | 2026-07-28 |
 
 ## 4. Blockers & Risks
-- **Risk:** Blockchain logging must be atomic with data insert (per skill: add_block_within_conn)
-- **Risk:** Photo uploads need secure filename + size limits
-- **Risk:** Agent moderation false-positives — needs human review queue
+- None currently.
 
 ## 5. Next Step (only ONE)
 
-> **Next:** Create `PROMPTS.md` with 30 testable build prompts, then begin Phase 1.
+> **Next:** Commit v0.2.0 and push to GitHub `origin main`.
 
 ## 6. Environment & Tooling Notes
 - Runtime: Python 3.11, Flask, Werkzeug, SQLite
-- Local hosting: `127.0.0.1:9197` (next available port after 9196)
+- Local hosting: `127.0.0.1:9197`
 - GitHub: `drwjkirkpatrick-web/mini-social-media`
+- Tests: `95 passed` via `.venv/bin/python -m pytest tests/ -v`
 
 ## 7. Recent Session Log
-- 2026-07-28: Project conceived; skills loaded; planning phase started.
+- 2026-07-28: v0.1.0 built and pushed (60 files, 68 tests)
+- 2026-07-28: v0.2.0 — 30 new modules coded, 22 new test files, 95 tests passing
+- 2026-07-28: Dark mode, onboarding, help center, password reset, engaged sort added
+- 2026-07-28: README rewritten with Phosphorus personality
 
 ## 8. References
-- Plan: `.hermes/plans/2026-07-28_mini-social-media.md` (TBD)
-- Prompts: `PROMPTS.md`
+- Prompts v1: `PROMPTS.md` (30 original prompts)
+- Prompts v2: `PROMPTS_v2.md` (30 new module prompts)
+- Repo: https://github.com/drwjkirkpatrick-web/mini-social-media

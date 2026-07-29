@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Messages — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>Messages</h2></div>
+{% for conv in conversations %}
+<a href="{{ url_for('message_thread', user_id=conv.other_id) }}" style="text-decoration:none;color:inherit;">
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <img src="{{ conv.avatar_url or '' }}" class="avatar" alt="">
+      <span>{{ conv.display_name or conv.username }}</span>
+    </div>
+    {% if conv.unread_count > 0 %}<span class="badge">{{ conv.unread_count }}</span>{% endif %}
+  </div>
+</a>
+{% else %}
+<div class="card"><p class="meta">No messages yet. <a href="{{ url_for('friends') }}">Find a friend to message</a>.</p></div>
+{% endfor %}
+{% endblock %}

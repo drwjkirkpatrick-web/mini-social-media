@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title }} — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{ event.title }}</h2>
+  <p class="meta">{{ event.start_time or 'TBA' }} — {{ event.end_time or 'TBA' }}</p>
+  <p>{{ event.location or '' }}</p>
+  <p>{{ event.description or '' }}</p>
+  <form method="POST" action="{{ url_for('event_rsvp', event_id=event.id) }}">
+    <label>RSVP:</label>
+    <select name="status">
+      <option value="going">Going</option>
+      <option value="maybe">Maybe</option>
+      <option value="not_going">Not Going</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-small">Update</button>
+  </form>
+</div>
+<div class="card">
+  <h3>Attendees</h3>
+  {% for r in rsvps %}
+    <div style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;">
+      <img src="{{ r.avatar_url or '' }}" class="avatar" alt="">
+      <span>{{ r.display_name or r.username }} — <strong>{{ r.status }}</strong></span>
+    </div>
+  {% else %}
+    <p class="meta">No RSVPs yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}

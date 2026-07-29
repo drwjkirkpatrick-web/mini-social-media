@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Events — mini-social-media{% endblock %}
+{% block content %}
+<div class="card" style="display:flex;justify-content:space-between;">
+  <h2>Events</h2>
+  <a href="{{ url_for('new_event') }}" class="btn btn-primary">New Event</a>
+</div>
+{% for event in events %}
+<div class="card">
+  <h3><a href="{{ url_for('event_detail', event_id=event.id) }}">{{ event.title }}</a></h3>
+  <p class="meta">{{ event.start_time or 'TBA' }}{% if event.location %} · {{ event.location }}{% endif %}</p>
+  <p>{{ event.description[:200] }}{% if event.description|length > 200 %}...{% endif %}</p>
+</div>
+{% else %}
+<div class="card"><p>No events yet. <a href="{{ url_for('new_event') }}">Create one</a>.</p></div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Mutual Friends — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>{{ count }} Mutual Friend{% if count != 1 %}s{% endif %}</h2></div>
+{% for u in users %}
+<div class="card" style="display:flex;align-items:center;gap:0.5rem;">
+  <img src="{{ u.avatar_url or '' }}" class="avatar" alt="">
+  <a href="{{ url_for('user_profile', user_id=u.id) }}">{{ u.display_name or u.username }}</a>
+</div>
+{% else %}
+<div class="card"><p class="meta">No mutual friends.</p></div>
+{% endfor %}
+{% endblock %}

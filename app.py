@@ -45,6 +45,11 @@ def _current_user() -> dict:
     return database.get_user(uid) if uid else None
 
 
+@app.context_processor
+def inject_current_user():
+    return {"current_user": _current_user()}
+
+
 def _slugify(text: str) -> str:
     return re.sub(r"[^\w-]+", "-", text.lower()).strip("-")
 
@@ -53,8 +58,546 @@ def _slugify(text: str) -> str:
 # Auth routes
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Wave 1: Deep Social Interaction Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/events")
+@login_required
+def events():
+    me = _current_user()
+    evs = database.list_events(limit=50)
+    return render_template("events.html", events=evs)
+
+
+@app.route("/event/new", methods=["GET", "POST"])
+@login_required
+def new_event():
+    user = _current_user()
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        description = request.form.get("description", "").strip()
+        location = request.form.get("location", "").strip()
+        start_time = request.form.get("start_time", "").strip()
+        end_time = request.form.get("end_time", "").strip()
+        if not title:
+            flash("Title is required.", "error")
+            return render_template("new_event.html"), 400
+        eid = database.create_event(user["id"], title, description, location, start_time or None, end_time or None)
+        flash("Event created!", "success")
+        return redirect(url_for("event_detail", event_id=eid))
+    return render_template("new_event.html")
+
+
+@app.route("/event/<int:event_id>")
+@login_required
+def event_detail(event_id):
+    event = database.get_event(event_id)
+    if not event:
+        abort(404)
+    rsvps = database.get_event_rsvps(event_id)
+    return render_template("event_detail.html", event=event, rsvps=rsvps)
+
+
+@app.route("/event/<int:event_id>/rsvp", methods=["POST"])
+@login_required
+def event_rsvp(event_id):
+    me = _current_user()
+    status = request.form.get("status", "going")
+    database.rsvp_event(event_id, me["id"], status)
+    flash("RSVP updated.", "success")
+    return redirect(url_for("event_detail", event_id=event_id))
+
+
+@app.route("/bookmarks")
+@login_required
+def bookmarks():
+    me = _current_user()
+    posts = database.get_bookmarks(me["id"])
+    return render_template("bookmarks.html", posts=posts)
+
+
+@app.route("/post/<int:post_id>/bookmark", methods=["POST"])
+@login_required
+def toggle_bookmark(post_id):
+    me = _current_user()
+    added = database.toggle_bookmark(me["id"], post_id)
+    flash("Saved!" if added else "Removed.", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/post/<int:post_id>/react", methods=["POST"])
+@login_required
+def react_to_post(post_id):
+    me = _current_user()
+    reaction = request.form.get("reaction", "heart")
+    database.add_reaction(post_id, me["id"], reaction)
+    return redirect(url_for("feed"))
+
+
+@app.route("/messages")
+@login_required
+def messages():
+    me = _current_user()
+    conversations = database.get_conversation_list(me["id"])
+    return render_template("messages.html", conversations=conversations)
+
+
+@app.route("/messages/<int:user_id>", methods=["GET", "POST"])
+@login_required
+def message_thread(user_id):
+    me = _current_user()
+    if request.method == "POST":
+        content = request.form.get("content", "").strip()
+        if content:
+            # Enforce friends-only DMs
+            friendship = database.get_friendship(me["id"], user_id)
+            blocked = database.list_blocked(user_id)
+            if me["id"] in blocked:
+                flash("You have been blocked.", "error")
+                return redirect(url_for("message_thread", user_id=user_id))
+            if not (friendship and friendship["status"] == "accepted"):
+                flash("You can only message friends.", "error")
+                return redirect(url_for("message_thread", user_id=user_id))
+            database.send_message(me["id"], user_id, content)
+        return redirect(url_for("message_thread", user_id=user_id))
+    msgs = database.get_messages_between(me["id"], user_id)
+    database.mark_messages_read(me["id"], user_id)
+    other = database.get_user(user_id)
+    return render_template("message_thread.html", messages=msgs, other=other)
+
+
+@app.route("/notifications")
+@login_required
+def notifications():
+    me = _current_user()
+    notes = database.get_unread_notifications(me["id"])
+    # Also get read ones for context
+    conn = database.get_connection()
+    all_notes = conn.execute(
+        "SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 50",
+        (me["id"],),
+    ).fetchall()
+    conn.close()
+    return render_template("notifications.html", notifications=[dict(r) for r in all_notes])
+
+
+@app.route("/notifications/<int:note_id>/read", methods=["POST"])
+@login_required
+def mark_notification_read_route(note_id):
+    database.mark_notification_read(note_id)
+    return redirect(url_for("notifications"))
+
+
+@app.route("/search")
+def search():
+    q = request.args.get("q", "").strip()
+    tab = request.args.get("tab", "posts")
+    users = []
+    posts = []
+    pages = []
+    if q:
+        conn = database.get_connection()
+        if tab == "users":
+            rows = conn.execute(
+                "SELECT id, username, display_name, avatar_url FROM users WHERE (username LIKE ? OR display_name LIKE ?) AND is_active=1 LIMIT 20",
+                (f"%{q}%", f"%{q}%"),
+            ).fetchall()
+            users = [dict(r) for r in rows]
+        elif tab == "posts":
+            rows = conn.execute(
+                """SELECT p.*, u.username, u.display_name, u.avatar_url
+                   FROM posts p JOIN users u ON u.id = p.user_id
+                   WHERE p.text_content LIKE ? AND p.moderation_status='approved' AND p.is_draft=0 AND p.is_scheduled=0
+                   ORDER BY p.created_at DESC LIMIT 20""",
+                (f"%{q}%",),
+            ).fetchall()
+            posts = [dict(r) for r in rows]
+        elif tab == "pages":
+            rows = conn.execute(
+                "SELECT * FROM pages WHERE title LIKE ? AND is_public=1 LIMIT 20",
+                (f"%{q}%",),
+            ).fetchall()
+            pages = [dict(r) for r in rows]
+        conn.close()
+    return render_template("search.html", q=q, tab=tab, users=users, posts=posts, pages=pages)
+
+
+@app.route("/tag/<tag>")
+def tag_posts(tag):
+    posts = database.get_posts_by_hashtag(tag, limit=50)
+    return render_template("tag.html", tag=tag, posts=posts)
+
+
+@app.route("/discover")
+@login_required
+def discover():
+    conn = database.get_connection()
+    # Recently joined users
+    rows = conn.execute(
+        "SELECT id, username, display_name, avatar_url, bio, created_at FROM users WHERE is_active=1 ORDER BY created_at DESC LIMIT 20"
+    ).fetchall()
+    new_users = [dict(r) for r in rows]
+    # Suggested: users with mutual friends
+    me = _current_user()
+    my_friends = database.list_friends(me["id"])
+    my_friend_ids = {f["id"] for f in my_friends}
+    suggestions = []
+    if my_friend_ids:
+        placeholders = ",".join("?" for _ in my_friend_ids)
+        rows = conn.execute(
+            f"""SELECT DISTINCT u.id, u.username, u.display_name, u.avatar_url,
+                       (SELECT COUNT(*) FROM friendships f2 WHERE f2.status='accepted'
+                        AND ((f2.requester_id=u.id AND f2.addressee_id IN ({placeholders}))
+                             OR (f2.addressee_id=u.id AND f2.requester_id IN ({placeholders})))) as mutuals
+               FROM friendships f1
+               JOIN users u ON (u.id = f1.requester_id OR u.id = f1.addressee_id)
+               WHERE u.id != ? AND u.is_active=1
+                 AND (f1.requester_id IN ({placeholders}) OR f1.addressee_id IN ({placeholders}))
+                 AND u.id NOT IN ({placeholders})
+               ORDER BY mutuals DESC
+               LIMIT 10""",
+            list(my_friend_ids) + [me["id"]] + list(my_friend_ids)*3,
+        ).fetchall()
+        suggestions = [dict(r) for r in rows]
+    conn.close()
+    return render_template("discover.html", new_users=new_users, suggestions=suggestions)
+
+
+@app.route("/mutual/<int:user_id>")
+@login_required
+def mutual_friends(user_id):
+    me = _current_user()
+    my_friends = database.list_friends(me["id"])
+    their_friends = database.list_friends(user_id)
+    my_ids = {f["id"] for f in my_friends}
+    their_ids = {f["id"] for f in their_friends}
+    mutual = my_ids & their_ids
+    conn = database.get_connection()
+    users = []
+    if mutual:
+        placeholders = ",".join("?" for _ in mutual)
+        rows = conn.execute(
+            f"SELECT id, username, display_name, avatar_url FROM users WHERE id IN ({placeholders})",
+            list(mutual),
+        ).fetchall()
+        users = [dict(r) for r in rows]
+    conn.close()
+    return render_template("mutual.html", users=users, count=len(users))
+
+
+# ---------------------------------------------------------------------------
+# Wave 2: Polish, Onboarding & Power Features
+# ---------------------------------------------------------------------------
+
+@app.route("/welcome")
+@login_required
+def welcome():
+    user = _current_user()
+    if user.get("has_onboarded"):
+        return redirect(url_for("feed"))
+    return render_template("welcome.html", step=int(request.args.get("step", 1)))
+
+
+@app.route("/welcome", methods=["POST"])
+@login_required
+def welcome_post():
+    user = _current_user()
+    step = int(request.form.get("step", 1))
+    if step == 1:
+        # Avatar upload
+        if "avatar" in request.files:
+            file = request.files["avatar"]
+            if file and file.filename and allowed_file(file.filename):
+                try:
+                    url = save_photo(file, user["id"])
+                    database.update_user(user["id"], avatar_url=url)
+                except ValueError:
+                    pass
+    elif step == 2:
+        bio = request.form.get("bio", "").strip()
+        if bio:
+            database.update_user(user["id"], bio=bio)
+    elif step == 3:
+        pass  # Friend discovery shown as page
+    elif step == 4:
+        pass  # First post prompt
+    if step >= 4:
+        conn = database.get_connection()
+        conn.execute("UPDATE users SET has_onboarded=1 WHERE id=?", (user["id"],))
+        conn.commit()
+        conn.close()
+        flash("Welcome aboard! Your profile is ready.", "success")
+        return redirect(url_for("feed"))
+    return redirect(url_for("welcome", step=step + 1))
+
+
+@app.route("/help")
+def help_center():
+    return render_template("help.html")
+
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        user = database.get_user_by_email(email)
+        if user:
+            import secrets
+            from datetime import datetime, timezone, timedelta
+            token = secrets.token_urlsafe(24)
+            expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+            conn = database.get_connection()
+            conn.execute("UPDATE users SET reset_token=?, reset_expires=? WHERE id=?", (token, expires, user["id"]))
+            conn.commit()
+            conn.close()
+            # In production, send email. For demo, show token on screen.
+            flash(f"Reset token (demo only): {token}", "success")
+        else:
+            flash("If that email exists, a reset link was sent.", "info")
+        return redirect(url_for("login"))
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    conn = database.get_connection()
+    row = conn.execute("SELECT * FROM users WHERE reset_token=?", (token,)).fetchone()
+    if not row:
+        conn.close()
+        flash("Invalid or expired token.", "error")
+        return redirect(url_for("login"))
+    from datetime import datetime, timezone
+    if row["reset_expires"] and datetime.fromisoformat(row["reset_expires"]) < datetime.now(timezone.utc):
+        conn.close()
+        flash("Token expired.", "error")
+        return redirect(url_for("login"))
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        if len(password) < 8:
+            flash("Password must be at least 8 characters.", "error")
+            return render_template("reset_password.html", token=token)
+        conn.execute("UPDATE users SET password_hash=?, reset_token=NULL, reset_expires=NULL WHERE id=?",
+                     (hash_password(password), row["id"]))
+        conn.commit()
+        conn.close()
+        flash("Password reset successfully!", "success")
+        return redirect(url_for("login"))
+    conn.close()
+    return render_template("reset_password.html", token=token)
+
+
+@app.route("/settings/theme", methods=["POST"])
+@login_required
+def save_theme():
+    user = _current_user()
+    theme = request.form.get("theme", "light")
+    accent = request.form.get("accent_color", "#4a90d9")
+    conn = database.get_connection()
+    conn.execute("UPDATE users SET theme=?, accent_color=? WHERE id=?", (theme, accent, user["id"]))
+    conn.commit()
+    conn.close()
+    flash("Theme saved!", "success")
+    return redirect(url_for("profile"))
+
+
+@app.route("/settings/export")
+@login_required
+def export_data():
+    import json
+    user = _current_user()
+    conn = database.get_connection()
+    data = {
+        "user": dict(conn.execute("SELECT * FROM users WHERE id=?", (user["id"],)).fetchone()),
+        "posts": [dict(r) for r in conn.execute("SELECT * FROM posts WHERE user_id=?", (user["id"],)).fetchall()],
+        "likes": [dict(r) for r in conn.execute("SELECT * FROM post_likes WHERE user_id=?", (user["id"],)).fetchall()],
+        "comments": [dict(r) for r in conn.execute("SELECT * FROM post_comments WHERE user_id=?", (user["id"],)).fetchall()],
+        "friends": [dict(r) for r in conn.execute("""
+            SELECT * FROM friendships WHERE requester_id=? OR addressee_id=?""", (user["id"], user["id"])).fetchall()],
+        "bookmarks": [dict(r) for r in conn.execute("SELECT * FROM bookmarks WHERE user_id=?", (user["id"],)).fetchall()],
+        "messages": [dict(r) for r in conn.execute(
+            "SELECT * FROM messages WHERE sender_id=? OR recipient_id=?", (user["id"], user["id"])).fetchall()],
+    }
+    conn.close()
+    response = jsonify(data)
+    response.headers["Content-Disposition"] = f'attachment; filename="export_{user["username"]}.json"'
+    return response
+
+
+@app.route("/settings/deactivate", methods=["POST"])
+@login_required
+def deactivate_account():
+    user = _current_user()
+    conn = database.get_connection()
+    conn.execute("UPDATE users SET is_active=0, username='deleted_user_' || id, display_name='[deleted user]', bio='', avatar_url=NULL, cover_url=NULL WHERE id=?", (user["id"],))
+    conn.execute("UPDATE posts SET text_content='[deleted]', link_url=NULL, photo_url=NULL, text_content='[deleted]' WHERE user_id=?", (user["id"],))
+    conn.commit()
+    conn.close()
+    session.clear()
+    flash("Account deactivated.", "info")
+    return redirect(url_for("login"))
+
+
+@app.route("/post/<int:post_id>/pin", methods=["POST"])
+@login_required
+def pin_post(post_id):
+    user = _current_user()
+    conn = database.get_connection()
+    # Unpin any existing pinned post by this user
+    conn.execute("UPDATE posts SET is_pinned=0 WHERE user_id=? AND is_pinned=1", (user["id"],))
+    conn.execute("UPDATE posts SET is_pinned=1 WHERE id=? AND user_id=?", (post_id, user["id"]))
+    conn.commit()
+    conn.close()
+    flash("Post pinned to your profile.", "success")
+    return redirect(url_for("profile"))
+
+
+@app.route("/post/<int:post_id>/share", methods=["POST"])
+@login_required
+def share_post(post_id):
+    user = _current_user()
+    comment = request.form.get("share_comment", "").strip()
+    original = database.get_post(post_id)
+    if not original:
+        abort(404)
+    pid = database.create_post(
+        user["id"], original["content_type"],
+        text_content=original["text_content"],
+        link_url=original["link_url"],
+        photo_url=original["photo_url"],
+    )
+    conn = database.get_connection()
+    conn.execute("UPDATE posts SET original_post_id=?, share_comment=? WHERE id=?", (post_id, comment, pid))
+    conn.commit()
+    conn.close()
+    database.create_notification(original["user_id"], "share", pid, f"{user['display_name'] or user['username']} shared your post.")
+    flash("Post shared!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/drafts")
+@login_required
+def drafts():
+    user = _current_user()
+    conn = database.get_connection()
+    rows = conn.execute(
+        """SELECT * FROM posts WHERE user_id=? AND is_draft=1 ORDER BY updated_at DESC""",
+        (user["id"],),
+    ).fetchall()
+    conn.close()
+    return render_template("drafts.html", posts=[dict(r) for r in rows])
+
+
+@app.route("/post/<int:post_id>/stats")
+@login_required
+def post_stats(post_id):
+    post = database.get_post(post_id)
+    user = _current_user()
+    if not post or post["user_id"] != user["id"]:
+        abort(403)
+    reactions = database.get_reactions(post_id)
+    likes = database.count_likes(post_id)
+    comments = database.count_comments(post_id)
+    conn = database.get_connection()
+    shares = conn.execute("SELECT COUNT(*) as c FROM posts WHERE original_post_id=?", (post_id,)).fetchone()["c"]
+    views = conn.execute("SELECT COUNT(*) as c FROM audit_log WHERE table_name='posts' AND record_id=? AND action='view'", (post_id,)).fetchone()["c"]
+    conn.close()
+    return render_template("post_stats.html", post=post, reactions=reactions, likes=likes, comments=comments, shares=shares, views=views)
+
+
+@app.route("/circles")
+@login_required
+def circles():
+    user = _current_user()
+    circles = database.list_user_circles(user["id"])
+    friends = database.list_friends(user["id"])
+    return render_template("circles.html", circles=circles, friends=friends)
+
+
+@app.route("/circle/new", methods=["POST"])
+@login_required
+def new_circle():
+    user = _current_user()
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash("Circle name required.", "error")
+        return redirect(url_for("circles"))
+    cid = database.create_circle(user["id"], name)
+    # Add selected members
+    for mid in request.form.getlist("members"):
+        database.add_circle_member(cid, int(mid))
+    flash("Circle created!", "success")
+    return redirect(url_for("circles"))
+
+
+@app.route("/post/<int:original_id>/repost", methods=["POST"])
+@login_required
+def repost(original_id):
+    return share_post(original_id)
+
+
+# ---------------------------------------------------------------------------
+# Wave 3: Content Warnings, Settings, Onboarding Helpers
+# ---------------------------------------------------------------------------
+
+@app.route("/mentions")
+@login_required
+def mentions():
+    me = _current_user()
+    conn = database.get_connection()
+    rows = conn.execute(
+        """SELECT p.*, u.username, u.display_name, u.avatar_url
+           FROM posts p
+           JOIN users u ON u.id = p.user_id
+           WHERE p.text_content LIKE ? AND p.moderation_status='approved'
+           ORDER BY p.created_at DESC LIMIT 50""",
+        (f"%@{me['username']}%",),
+    ).fetchall()
+    conn.close()
+    return render_template("mentions.html", posts=[dict(r) for r in rows])
+
+
+@app.route("/activity")
+@login_required
+def activity_log():
+    user = _current_user()
+    conn = database.get_connection()
+    posts = [dict(r) for r in conn.execute(
+        "SELECT * FROM posts WHERE user_id=? ORDER BY created_at DESC LIMIT 10", (user["id"],)).fetchall()]
+    likes = [dict(r) for r in conn.execute(
+        """SELECT pl.*, p.text_content, p.content_type
+           FROM post_likes pl JOIN posts p ON p.id = pl.post_id
+           WHERE pl.user_id=? ORDER BY pl.created_at DESC LIMIT 10""", (user["id"],)).fetchall()]
+    comments = [dict(r) for r in conn.execute(
+        """SELECT pc.*, p.text_content, p.content_type
+           FROM post_comments pc JOIN posts p ON p.id = pc.post_id
+           WHERE pc.user_id=? ORDER BY pc.created_at DESC LIMIT 10""", (user["id"],)).fetchall()]
+    conn.close()
+    return render_template("activity.html", posts=posts, likes=likes, comments=comments)
+
+
+@app.route("/settings")
+@login_required
+def settings():
+    user = _current_user()
+    invites = database.list_invite_tokens(user["id"])
+    return render_template("settings.html", user=user, invites=invites)
+
+
+@app.route("/settings/invite", methods=["POST"])
+@login_required
+def create_invite():
+    user = _current_user()
+    max_uses = int(request.form.get("max_uses", 1))
+    token = database.create_invite_token(user["id"], max_uses)
+    flash(f"Invite link created: /signup?invite={token}", "success")
+    return redirect(url_for("settings"))
+
+
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
+    # Check for invite token
+    invite_token = request.args.get("invite") or request.form.get("invite", "")
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         email = request.form.get("email", "").strip()
@@ -62,7 +605,6 @@ def signup():
         password2 = request.form.get("password2", "")
         display_name = request.form.get("display_name", "").strip()
 
-        # Validation
         errors = []
         if not re.match(r"^[a-zA-Z0-9_]{3,30}$", username):
             errors.append("Username: 3-30 alphanumeric/underscore characters.")
@@ -77,10 +619,14 @@ def signup():
         if database.get_user_by_email(email):
             errors.append("Email already registered.")
 
+        # Validate invite token if provided
+        if invite_token and not database.validate_invite_token(invite_token):
+            errors.append("Invalid or expired invite token.")
+
         if errors:
             for e in errors:
                 flash(e, "error")
-            return render_template("signup.html", username=username, email=email, display_name=display_name), 400
+            return render_template("signup.html", username=username, email=email, display_name=display_name, invite=invite_token), 400
 
         pw_hash = hash_password(password)
         uid = database.create_user(username, email, pw_hash, display_name or username)
@@ -88,8 +634,8 @@ def signup():
         session["user_id"] = uid
         session["role"] = "user"
         flash("Welcome! Your account has been created.", "success")
-        return redirect(url_for("feed"))
-    return render_template("signup.html")
+        return redirect(url_for("welcome"))
+    return render_template("signup.html", invite=invite_token)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -255,6 +801,9 @@ def create_post():
         mod_score, mod_reason = moderate_text(post_text or link_url or "")
         mod_status = status_from_score(mod_score)
 
+        # Content warning
+        content_warning = request.form.get("content_warning", "").strip()
+
         # Create post
         post_id = database.create_post(
             user["id"], content_type, text_content=post_text,
@@ -264,6 +813,10 @@ def create_post():
         # Update moderation status if auto-approved or auto-rejected
         conn = database.get_connection()
         conn.execute("UPDATE posts SET moderation_status=? WHERE id=?", (mod_status, post_id))
+        if content_warning:
+            conn.execute("UPDATE posts SET content_warning=? WHERE id=?", (content_warning, post_id))
+        # Extract and store hashtags
+        database.store_hashtags(post_id, post_text or "")
         conn.commit()
 
         # Blockchain audit

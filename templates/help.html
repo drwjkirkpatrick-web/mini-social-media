@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Help Center — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>Help Center</h2></div>
+<div class="card">
+  <h3>Getting Started</h3>
+  <p><strong>How do I sign up?</strong> Click "Sign Up" on the login page. Pick a username (3-30 chars), enter your email, and choose a password of at least 8 characters.</p>
+  <p><strong>How do I find friends?</strong> Visit the <a href="{{ url_for('discover') }}">Discover</a> page to browse recently joined users or suggested friends based on mutual connections.</p>
+  <p><strong>What can I post?</strong> Text (up to 2000 chars), links, or photos. Every post is friends-only by default — no public option. You can also set a post to "Only me."</p>
+</div>
+<div class="card">
+  <h3>Privacy</h3>
+  <p><strong>Who sees my posts?</strong> Only your accepted friends, unless you choose "Only me." No public posts. No algorithms.</p>
+  <p><strong>Can I block someone?</strong> Yes. Visit their profile and you'll find block controls. Blocked users cannot see your posts or message you.</p>
+  <p><strong>Where is my data stored?</strong> On this server only. SQLite database. No cloud. No third-party trackers.</p>
+</div>
+<div class="card">
+  <h3>Moderation</h3>
+  <p><strong>How does moderation work?</strong> An agent scans posts for keywords and patterns. Clean posts pass. Flagged ones go to a human review queue. Rejected posts never appear.</p>
+  <p><strong>My post was flagged. What now?</strong> Wait for an admin to review. You'll be notified of the decision.</p>
+</div>
+<div class="card">
+  <h3>Account</h3>
+  <p><strong>How do I reset my password?</strong> Use the <a href="{{ url_for('forgot_password') }}">Forgot Password</a> link on the login page.</p>
+  <p><strong>How do I export my data?</strong> Go to <a href="{{ url_for('settings') }}">Settings</a> and click "Export Data." You'll receive a JSON file with everything.</p>
+  <p><strong>Can I delete my account?</strong> Yes. Deactivation anonymizes your posts and hides your profile. You can reactivate by logging back in.</p>
+</div>
+{% endblock %}

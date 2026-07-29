@@ -1,51 +1,81 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="{{ current_user.theme|default('light') }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}mini-social-media{% endblock %}</title>
   <style>
-    :root { --bg: #f5f7fa; --card: #fff; --text: #333; --accent: #4a90d9; --accent2: #357abd; --danger: #d9534f; --success: #5cb85c; --warning: #f0ad4e; }
+    :root {
+      --bg: #f5f7fa; --card: #fff; --text: #333; --text-secondary: #666;
+      --accent: #4a90d9; --accent2: #357abd; --danger: #d9534f; --success: #5cb85c;
+      --warning: #f0ad4e; --border: #ddd; --shadow: rgba(0,0,0,0.08);
+    }
+    [data-theme="dark"] {
+      --bg: #1a1a2e; --card: #16213e; --text: #e0e0e0; --text-secondary: #aaa;
+      --accent: #5a9fd4; --accent2: #4a8fc4; --danger: #e57373; --success: #81c784;
+      --warning: #ffb74d; --border: #2a2a4a; --shadow: rgba(0,0,0,0.3);
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; transition: background 0.3s, color 0.3s; }
+    a { color: var(--accent); }
     .container { max-width: 800px; margin: 0 auto; padding: 0 1rem; }
-    nav { background: var(--card); border-bottom: 1px solid #ddd; padding: 0.75rem 0; position: sticky; top: 0; z-index: 10; }
-    nav .container { display: flex; justify-content: space-between; align-items: center; }
-    nav a { color: var(--accent); text-decoration: none; font-weight: 600; margin-left: 1rem; }
+    .skip-link { position: absolute; top: -40px; left: 0; background: var(--accent); color: #fff; padding: 8px; z-index: 100; }
+    .skip-link:focus { top: 0; }
+    nav { background: var(--card); border-bottom: 1px solid var(--border); padding: 0.75rem 0; position: sticky; top: 0; z-index: 10; }
+    nav .container { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+    nav a { color: var(--accent); text-decoration: none; font-weight: 600; margin-left: 0.75rem; font-size: 0.9rem; }
     nav a:hover { color: var(--accent2); }
     .logo { font-size: 1.25rem; color: var(--text); }
     .flash { padding: 0.75rem 1rem; border-radius: 0.375rem; margin: 1rem 0; }
-    .flash.success { background: #e6f4ea; color: var(--success); border: 1px solid var(--success); }
-    .flash.error { background: #fce8e6; color: var(--danger); border: 1px solid var(--danger); }
-    .flash.info { background: #e8f0fe; color: var(--accent); border: 1px solid var(--accent); }
-    .card { background: var(--card); border-radius: 0.5rem; padding: 1.25rem; margin: 1rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    .btn { display: inline-block; padding: 0.5rem 1rem; border: none; border-radius: 0.375rem; cursor: pointer; text-decoration: none; font-size: 0.95rem; }
+    .flash.success { background: rgba(92,184,92,0.1); color: var(--success); border: 1px solid var(--success); }
+    .flash.error { background: rgba(217,83,79,0.1); color: var(--danger); border: 1px solid var(--danger); }
+    .flash.info { background: rgba(74,144,217,0.1); color: var(--accent); border: 1px solid var(--accent); }
+    .card { background: var(--card); border-radius: 0.5rem; padding: 1.25rem; margin: 1rem 0; box-shadow: 0 1px 3px var(--shadow); transition: background 0.3s; }
+    .btn { display: inline-block; padding: 0.5rem 1rem; border: none; border-radius: 0.375rem; cursor: pointer; text-decoration: none; font-size: 0.95rem; background: #eee; color: #333; }
+    .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     .btn-primary { background: var(--accent); color: #fff; }
     .btn-primary:hover { background: var(--accent2); }
     .btn-danger { background: var(--danger); color: #fff; }
     .btn-small { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
-    input, textarea, select { width: 100%; padding: 0.5rem; margin: 0.25rem 0 0.75rem; border: 1px solid #ccc; border-radius: 0.375rem; font-family: inherit; }
+    input, textarea, select { width: 100%; padding: 0.5rem; margin: 0.25rem 0 0.75rem; border: 1px solid var(--border); border-radius: 0.375rem; font-family: inherit; background: var(--card); color: var(--text); }
     label { font-weight: 600; font-size: 0.9rem; }
     .form-group { margin-bottom: 0.75rem; }
-    .meta { font-size: 0.8rem; color: #777; }
+    .meta { font-size: 0.8rem; color: var(--text-secondary); }
     .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 0.5rem; background: #ddd; }
     .avatar-lg { width: 80px; height: 80px; }
-    footer { text-align: center; padding: 2rem 0; font-size: 0.8rem; color: #999; border-top: 1px solid #ddd; margin-top: 2rem; }
+    footer { text-align: center; padding: 2rem 0; font-size: 0.8rem; color: var(--text-secondary); border-top: 1px solid var(--border); margin-top: 2rem; }
     .grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
     .photo-thumb { width: 100%; height: 180px; object-fit: cover; border-radius: 0.375rem; cursor: pointer; }
-    @media (max-width: 600px) { .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+    .search-bar { max-width: 300px; }
+    .search-bar input { margin: 0; padding: 0.4rem 0.75rem; font-size: 0.9rem; }
+    .badge { display: inline-block; padding: 0.15rem 0.4rem; border-radius: 1rem; background: var(--danger); color: #fff; font-size: 0.7rem; font-weight: 700; }
+    .reaction-bar { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .reaction-btn { background: transparent; border: 1px solid var(--border); border-radius: 1rem; padding: 0.2rem 0.6rem; cursor: pointer; font-size: 0.85rem; }
+    .reaction-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .reaction-btn:hover { background: rgba(74,144,217,0.1); }
+    .warning-overlay { position: relative; background: repeating-linear-gradient(45deg, #ffeb3b, #ffeb3b 10px, #fff176 10px, #fff176 20px); border-radius: 0.5rem; padding: 1rem; margin: 0.5rem 0; }
+    .warning-overlay button { margin-top: 0.5rem; }
+    @media (max-width: 600px) { .grid-3 { grid-template-columns: repeat(2, 1fr); } nav .container { flex-direction: column; align-items: stretch; } }
   </style>
   {% block head %}{% endblock %}
 </head>
 <body>
+  <a href="#content" class="skip-link">Skip to content</a>
   <nav>
     <div class="container">
       <a href="{{ url_for('feed') }}" class="logo">mini-social-media</a>
+      <form method="GET" action="{{ url_for('search') }}" class="search-bar" style="display:flex;">
+        <input type="search" name="q" placeholder="Search..." aria-label="Search" value="{{ request.args.get('q','') }}">
+        <button type="submit" class="btn btn-small" style="margin-left:0.25rem;">Search</button>
+      </form>
       <div>
         {% if session.user_id %}
           <a href="{{ url_for('feed') }}">Feed</a>
+          <a href="{{ url_for('discover') }}">Discover</a>
           <a href="{{ url_for('friends') }}">Friends</a>
-          <a href="{{ url_for('profile') }}">Profile</a>
+          <a href="{{ url_for('messages') }}">Messages</a>
+          <a href="{{ url_for('notifications') }}">Notifications{% set unread = (current_user and current_user.unread_notifications) or 0 %}{% if unread > 0 %} <span class="badge">{{ unread }}</span>{% endif %}</a>
+          <a href="{{ url_for('settings') }}">Settings</a>
           {% if session.role == 'admin' %}
             <a href="{{ url_for('dashboard') }}">Dashboard</a>
             <a href="{{ url_for('moderation_queue') }}">Moderation</a>
@@ -54,15 +84,16 @@
         {% else %}
           <a href="{{ url_for('login') }}">Login</a>
           <a href="{{ url_for('signup') }}">Sign Up</a>
+          <a href="{{ url_for('help_center') }}">Help</a>
         {% endif %}
       </div>
     </div>
   </nav>
-  <div class="container">
+  <div class="container" id="content">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
-          <div class="flash {{ category }}">{{ message }}</div>
+          <div class="flash {{ category }}" role="alert">{{ message }}</div>
         {% endfor %}
       {% endif %}
     {% endwith %}
@@ -70,8 +101,16 @@
   </div>
   <footer>
     <div class="container">
+      <a href="{{ url_for('help_center') }}">Help Center</a> ·
+      <a href="{{ url_for('settings') }}">Settings</a> ·
       mini-social-media — privacy-first friends-only social media
     </div>
   </footer>
+  <script>
+    (function() {
+      var saved = localStorage.getItem('theme');
+      if (saved) document.documentElement.setAttribute('data-theme', saved);
+    })();
+  </script>
 </body>
 </html>

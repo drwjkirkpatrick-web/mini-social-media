@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Bookmarks — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>Saved Posts</h2></div>
+{% for post in posts %}
+<div class="card">
+  <div style="display:flex;align-items:center;">
+    <img src="{{ post.avatar_url or '' }}" class="avatar" alt="">
+    <a href="{{ url_for('user_profile', user_id=post.user_id) }}">{{ post.display_name or post.username }}</a>
+  </div>
+  <p style="margin-top:0.5rem;">{{ post.text_content or '' }}</p>
+  <form method="POST" action="{{ url_for('toggle_bookmark', post_id=post.id) }}" style="display:inline;">
+    <button type="submit" class="btn btn-small">Remove Bookmark</button>
+  </form>
+</div>
+{% else %}
+<div class="card"><p class="meta">No bookmarks yet.</p></div>
+{% endfor %}
+{% endblock %}

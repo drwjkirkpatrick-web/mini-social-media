@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Discover — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>Discover People</h2></div>
+{% if suggestions %}
+<div class="card">
+  <h3>Suggested Friends (mutual connections)</h3>
+  {% for s in suggestions %}
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <img src="{{ s.avatar_url or '' }}" class="avatar" alt="">
+      <a href="{{ url_for('user_profile', user_id=s.id) }}">{{ s.display_name or s.username }}</a>
+      <span class="meta">{{ s.mutuals }} mutual{% if s.mutuals != 1 %}s{% endif %}</span>
+    </div>
+    <form method="POST" action="{{ url_for('friend_request', user_id=s.id) }}" style="display:inline;">
+      <button type="submit" class="btn btn-primary btn-small">Add Friend</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="card">
+  <h3>Recently Joined</h3>
+  {% for u in new_users %}
+  <div style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;">
+    <img src="{{ u.avatar_url or '' }}" class="avatar" alt="">
+    <a href="{{ url_for('user_profile', user_id=u.id) }}">{{ u.display_name or u.username }}</a>
+    <span class="meta">{{ u.created_at[:10] }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -7,6 +7,11 @@
 </div>
 
 {% if posts %}
+  <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+    <a href="{{ url_for('feed', sort='newest') }}" class="btn btn-small {% if sort=='newest' %}btn-primary{% endif %}">Newest</a>
+    <a href="{{ url_for('feed', sort='oldest') }}" class="btn btn-small {% if sort=='oldest' %}btn-primary{% endif %}">Oldest</a>
+    <a href="{{ url_for('feed', sort='engaged') }}" class="btn btn-small {% if sort=='engaged' %}btn-primary{% endif %}">Most Engaged</a>
+  </div>
   {% for post in posts %}
   <div class="card">
     <div style="display:flex;align-items:center;margin-bottom:0.75rem;">
@@ -14,19 +19,38 @@
       <a href="{{ url_for('user_profile', user_id=post.user_id) }}" style="font-weight:600;">{{ post.display_name or post.username }}</a>
       <span class="meta" style="margin-left:auto;">{{ post.created_at }}</span>
     </div>
-    {% if post.content_type == 'text' %}
-      <p>{{ post.text_content }}</p>
-    {% elif post.content_type == 'link' %}
-      <p><a href="{{ post.link_url }}" target="_blank" rel="noopener">{{ post.link_url }}</a></p>
-    {% elif post.content_type == 'photo' %}
-      <img src="{{ post.photo_url }}" style="max-width:100%;border-radius:0.375rem;" alt="photo">
-      {% if post.text_content %}<p style="margin-top:0.5rem;">{{ post.text_content }}</p>{% endif %}
+    {% if post.content_warning %}
+    <div class="warning-overlay" id="cw-{{ post.id }}">
+      <strong>Content Warning: {{ post.content_warning }}</strong>
+      <button type="button" class="btn btn-small btn-primary" onclick="document.getElementById('content-{{ post.id }}').style.display='block';document.getElementById('cw-{{ post.id }}').style.display='none';">Show Content</button>
+    </div>
+    <div id="content-{{ post.id }}" style="display:none;">
     {% endif %}
-    <div style="display:flex;gap:1rem;margin-top:0.75rem;align-items:center;">
+      {% if post.content_type == 'text' %}
+        <p>{{ post.text_content }}</p>
+      {% elif post.content_type == 'link' %}
+        <p><a href="{{ post.link_url }}" target="_blank" rel="noopener">{{ post.link_url }}</a></p>
+      {% elif post.content_type == 'photo' %}
+        <img src="{{ post.photo_url }}" style="max-width:100%;border-radius:0.375rem;" alt="photo">
+        {% if post.text_content %}<p style="margin-top:0.5rem;">{{ post.text_content }}</p>{% endif %}
+      {% endif %}
+    {% if post.content_warning %}
+    </div>
+    {% endif %}
+    <div style="display:flex;gap:1rem;margin-top:0.75rem;align-items:center;flex-wrap:wrap;">
       <form method="POST" action="{{ url_for('like_post_route', post_id=post.id) }}" style="display:inline;">
-        <button type="submit" class="btn btn-small" style="background:#eee;">
-          {% if post.like_count %}>0 %} Unlike {% else %} Like {% endif %} ({{ post.like_count or 0 }})
-        </button>
+        <button type="submit" class="btn btn-small" style="background:#eee;">Like ({{ post.like_count or 0 }})</button>
+      </form>
+      <div class="reaction-bar">
+        {% for rtype in ['heart','laugh','wow','sad','fire'] %}
+          <form method="POST" action="{{ url_for('react_to_post', post_id=post.id) }}" style="display:inline;">
+            <input type="hidden" name="reaction" value="{{ rtype }}">
+            <button type="submit" class="reaction-btn {% if post.user_reaction == rtype %}active{% endif %}">{{ {'heart':'❤️','laugh':'😂','wow':'😮','sad':'😢','fire':'🔥'}[rtype] }} {{ post.reactions[rtype] or '' }}</button>
+          </form>
+        {% endfor %}
+      </div>
+      <form method="POST" action="{{ url_for('toggle_bookmark', post_id=post.id) }}" style="display:inline;">
+        <button type="submit" class="btn btn-small">🔖</button>
       </form>
       <span class="meta">{{ post.comment_count or 0 }} comments</span>
       <span class="meta" style="margin-left:auto;">Visibility: {{ post.visibility }}</span>
@@ -41,7 +65,7 @@
   {% endfor %}
 {% else %}
   <div class="card">
-    <p>Your feed is empty. <a href="{{ url_for('friends') }}">Add friends</a> or <a href="{{ url_for('create_post') }}">create a post</a> to get started.</p>
+    <p>Your feed is empty. <a href="{{ url_for('discover') }}">Discover people</a> or <a href="{{ url_for('create_post') }}">create a post</a> to get started.</p>
   </div>
 {% endif %}
 {% endblock %}

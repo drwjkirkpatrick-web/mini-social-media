@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Messages with {{ other.display_name or other.username }} — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;align-items:center;gap:0.5rem;">
+    <img src="{{ other.avatar_url or '' }}" class="avatar" alt="">
+    <h3>{{ other.display_name or other.username }}</h3>
+  </div>
+</div>
+{% for msg in messages %}
+<div class="card" style="{% if msg.sender_id == session.user_id %}margin-left:auto;max-width:80%;background:rgba(74,144,217,0.1);{% else %}max-width:80%;{% endif %}">
+  <p>{{ msg.content }}</p>
+  <p class="meta">{{ msg.created_at }}{% if msg.sender_id == session.user_id and msg.is_read %} · Read{% endif %}</p>
+</div>
+{% endfor %}
+<div class="card">
+  <form method="POST" style="display:flex;gap:0.5rem;">
+    <input type="text" name="content" placeholder="Write a message..." maxlength="2000" style="flex:1;" required>
+    <button type="submit" class="btn btn-primary">Send</button>
+  </form>
+</div>
+{% endblock %}

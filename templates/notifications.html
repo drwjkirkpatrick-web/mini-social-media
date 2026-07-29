@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Notifications — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Notifications</h2>
+</div>
+{% for note in notifications %}
+<div class="card" style="{% if not note.is_read %}border-left: 4px solid var(--accent);{% endif %}">
+  <p>{{ note.text }}</p>
+  <div style="display:flex;justify-content:space-between;">
+    <span class="meta">{{ note.created_at }}</span>
+    {% if not note.is_read %}
+    <form method="POST" action="{{ url_for('mark_notification_read_route', note_id=note.id) }}">
+      <button type="submit" class="btn btn-small">Mark Read</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="card"><p class="meta">No notifications.</p></div>
+{% endfor %}
+{% endblock %}

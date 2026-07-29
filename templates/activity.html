@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Activity Log — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>Your Activity</h2></div>
+<div class="card">
+  <h3>Recent Posts</h3>
+  {% for p in posts %}
+    <p class="meta">{{ p.created_at }} — {{ p.content_type }}</p>
+    <p>{{ p.text_content[:100] }}{% if p.text_content|length > 100 %}...{% endif %}</p>
+  {% else %}
+    <p class="meta">No posts.</p>
+  {% endfor %}
+</div>
+<div class="card">
+  <h3>Likes Given</h3>
+  {% for l in likes %}
+    <p class="meta">{{ l.created_at }} — liked a {{ l.content_type }} post</p>
+  {% else %}
+    <p class="meta">No likes yet.</p>
+  {% endfor %}
+</div>
+<div class="card">
+  <h3>Comments</h3>
+  {% for c in comments %}
+    <p class="meta">{{ c.created_at }}</p>
+    <p>{{ c.text[:100] }}{% if c.text|length > 100 %}...{% endif %}</p>
+  {% else %}
+    <p class="meta">No comments yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}

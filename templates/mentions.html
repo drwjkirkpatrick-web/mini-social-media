@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Mentions — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>Posts Mentioning You</h2></div>
+{% for post in posts %}
+<div class="card">
+  <div style="display:flex;align-items:center;"><img src="{{ post.avatar_url or '' }}" class="avatar" alt=""><span>{{ post.display_name or post.username }}</span></div>
+  <p>{{ post.text_content or '' }}</p>
+</div>
+{% else %}
+<div class="card"><p class="meta">No mentions yet.</p></div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Search — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Search Results for "{{ q }}"</h2>
+  <div style="display:flex;gap:1rem;margin:0.75rem 0;">
+    <a href="{{ url_for('search', q=q, tab='posts') }}" class="btn btn-small {% if tab=='posts' %}btn-primary{% endif %}">Posts</a>
+    <a href="{{ url_for('search', q=q, tab='users') }}" class="btn btn-small {% if tab=='users' %}btn-primary{% endif %}">Users</a>
+    <a href="{{ url_for('search', q=q, tab='pages') }}" class="btn btn-small {% if tab=='pages' %}btn-primary{% endif %}">Pages</a>
+  </div>
+</div>
+{% if tab == 'posts' %}
+  {% for post in posts %}
+  <div class="card">
+    <div style="display:flex;align-items:center;"><img src="{{ post.avatar_url or '' }}" class="avatar" alt=""><span>{{ post.display_name or post.username }}</span></div>
+    <p>{{ post.text_content or '' }}</p>
+  </div>
+  {% endfor %}
+{% elif tab == 'users' %}
+  {% for u in users %}
+  <div class="card" style="display:flex;align-items:center;gap:0.5rem;">
+    <img src="{{ u.avatar_url or '' }}" class="avatar" alt="">
+    <a href="{{ url_for('user_profile', user_id=u.id) }}">{{ u.display_name or u.username }}</a>
+  </div>
+  {% endfor %}
+{% elif tab == 'pages' %}
+  {% for p in pages %}
+  <div class="card"><a href="{{ url_for('page_view', user_id=p.user_id, slug=p.slug) }}">{{ p.title }}</a></div>
+  {% endfor %}
+{% endif %}
+{% if not (posts or users or pages) and q %}
+<div class="card"><p class="meta">No results found.</p></div>
+{% endif %}
+{% endblock %}

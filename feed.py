@@ -21,6 +21,8 @@ def get_feed(user_id: int, sort: str = "newest", limit: int = 50, offset: int = 
         FROM posts p
         JOIN users u ON u.id = p.user_id
         WHERE p.moderation_status = 'approved'
+          AND p.is_draft = 0
+          AND p.is_scheduled = 0
           AND (
               p.user_id = ?
               OR (
@@ -47,11 +49,34 @@ def get_feed(user_id: int, sort: str = "newest", limit: int = 50, offset: int = 
     posts = []
     for r in rows:
         d = dict(r)
-        # Enrich with like/comment counts
         d["like_count"] = _count_likes(d["id"])
         d["comment_count"] = _count_comments(d["id"])
+        d["reactions"] = _get_reactions(d["id"])
+        d["engagement_score"] = d["like_count"]*2 + d["comment_count"]*3 + sum(d["reactions"].values())
         posts.append(d)
+
+    if sort == "engaged":
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        def _score(post):
+            hours = 1
+            try:
+                created = datetime.fromisoformat(post["created_at"].replace("Z", "+00:00"))
+                hours = max(1, (now - created).total_seconds() / 3600)
+            except:
+                pass
+            recency = hours ** (-0.5)
+            return post["engagement_score"] + recency * 10
+        posts.sort(key=_score, reverse=True)
+
     return posts
+
+
+def _get_reactions(post_id: int) -> Dict[str, int]:
+    conn = get_connection()
+    rows = conn.execute("SELECT reaction_type, COUNT(*) as c FROM reactions WHERE post_id=? GROUP BY reaction_type", (post_id,)).fetchall()
+    conn.close()
+    return {r["reaction_type"]: r["c"] for r in rows}
 
 
 def _count_likes(post_id: int) -> int:
