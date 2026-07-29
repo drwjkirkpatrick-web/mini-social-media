@@ -1,4 +1,4 @@
-# 🔥 mini-social-media
+# 🦄 mini-social-media
 
 Welcome to the coziest corner of the internet — a **privacy-first, friends-only
 social media platform** built for people who value genuine connection over
