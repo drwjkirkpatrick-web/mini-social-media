@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}New Album — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Create Album</h2>
+  <form method="POST">
+    <div class="form-group">
+      <label for="title">Title</label>
+      <input type="text" id="title" name="title" required>
+    </div>
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="3"></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Create</button>
+  </form>
+</div>
+{% endblock %}

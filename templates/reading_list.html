@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Reading List — mini-social-media{% endblock %}
+{% block content %}
+<div class="card" style="display:flex;justify-content:space-between;">
+  <h2>Reading List</h2>
+</div>
+<div class="card">
+  <form method="POST" action="{{ url_for('add_reading') }}" style="display:flex;gap:0.5rem;">
+    <input type="url" name="url" placeholder="https://..." required style="flex:1;">
+    <input type="text" name="title" placeholder="Title">
+    <input type="text" name="notes" placeholder="Notes">
+    <button type="submit" class="btn btn-primary btn-small">Add</button>
+  </form>
+</div>
+{% for item in items %}
+<div class="card">
+  <h3><a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title or item.url }}</a></h3>
+  <p>{{ item.notes or '' }}</p>
+  <p class="meta">Added {{ item.created_at[:10] }}</p>
+</div>
+{% else %}
+<div class="card"><p class="meta">No items yet.</p></div>
+{% endfor %}
+{% endblock %}

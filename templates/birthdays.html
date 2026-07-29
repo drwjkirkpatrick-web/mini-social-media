@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Birthdays — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>Upcoming Birthdays</h2></div>
+{% for b in birthdays %}
+<div class="card" style="display:flex;align-items:center;gap:0.5rem;">
+  <img src="{{ b.avatar_url or '' }}" class="avatar" alt="">
+  <div>
+    <a href="{{ url_for('user_profile', user_id=b.id) }}">{{ b.display_name or b.username }}</a>
+    <p class="meta">🎂 {{ b.birthday_month }}/{{ b.birthday_day }}</p>
+  </div>
+</div>
+{% else %}
+<div class="card"><p class="meta">No upcoming birthdays in the next 30 days.</p></div>
+{% endfor %}
+{% endblock %}

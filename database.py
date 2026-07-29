@@ -53,12 +53,27 @@ def init_database():
         CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            content_type TEXT NOT NULL CHECK(content_type IN ('text', 'link', 'photo')),
+            content_type TEXT NOT NULL,
             text_content TEXT,
             link_url TEXT,
             photo_url TEXT,
+            video_url TEXT,
+            video_thumb_url TEXT,
+            voice_url TEXT,
+            photo_urls TEXT,
+            template_type TEXT,
+            template_data TEXT,
             visibility TEXT DEFAULT 'friends' CHECK(visibility IN ('friends', 'only_me')),
             moderation_status TEXT DEFAULT 'pending' CHECK(moderation_status IN ('pending', 'approved', 'rejected')),
+            is_draft INTEGER DEFAULT 0,
+            is_scheduled INTEGER DEFAULT 0,
+            scheduled_at TEXT,
+            is_pinned INTEGER DEFAULT 0,
+            original_post_id INTEGER,
+            share_comment TEXT,
+            content_warning TEXT,
+            expires_at TEXT,
+            view_count INTEGER DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
@@ -233,7 +248,7 @@ def init_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            reaction_type TEXT NOT NULL CHECK(reaction_type IN ('heart', 'laugh', 'wow', 'sad', 'fire')),
+            reaction_type TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(post_id, user_id)
         )
@@ -256,6 +271,7 @@ def init_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            group_id INTEGER,
             content TEXT NOT NULL,
             is_read INTEGER DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -318,6 +334,9 @@ def init_database():
         ("theme", "ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'light'"),
         ("accent_color", "ALTER TABLE users ADD COLUMN accent_color TEXT DEFAULT '#4a90d9'"),
         ("is_active", "ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1"),
+        ("birthday_month", "ALTER TABLE users ADD COLUMN birthday_month INTEGER"),
+        ("birthday_day", "ALTER TABLE users ADD COLUMN birthday_day INTEGER"),
+        ("mood", "ALTER TABLE users ADD COLUMN mood TEXT"),
     ]:
         if col not in existing:
             cursor.execute(ddl)
@@ -332,9 +351,195 @@ def init_database():
         ("original_post_id", "ALTER TABLE posts ADD COLUMN original_post_id INTEGER"),
         ("share_comment", "ALTER TABLE posts ADD COLUMN share_comment TEXT"),
         ("content_warning", "ALTER TABLE posts ADD COLUMN content_warning TEXT"),
+        ("video_url", "ALTER TABLE posts ADD COLUMN video_url TEXT"),
+        ("video_thumb_url", "ALTER TABLE posts ADD COLUMN video_thumb_url TEXT"),
+        ("voice_url", "ALTER TABLE posts ADD COLUMN voice_url TEXT"),
+        ("photo_urls", "ALTER TABLE posts ADD COLUMN photo_urls TEXT"),
+        ("template_type", "ALTER TABLE posts ADD COLUMN template_type TEXT"),
+        ("template_data", "ALTER TABLE posts ADD COLUMN template_data TEXT"),
+        ("expires_at", "ALTER TABLE posts ADD COLUMN expires_at TEXT"),
+        ("view_count", "ALTER TABLE posts ADD COLUMN view_count INTEGER DEFAULT 0"),
     ]:
         if col not in existing_posts:
             cursor.execute(ddl)
+
+    # v0.4.0: Stories
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            content_type TEXT NOT NULL,
+            text_content TEXT,
+            photo_url TEXT,
+            video_url TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL,
+            view_count INTEGER DEFAULT 0
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS story_views (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            story_id INTEGER NOT NULL,
+            viewer_id INTEGER NOT NULL,
+            viewed_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(story_id, viewer_id)
+        )
+    """)
+    # v0.4.0: Daily Prompts
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS daily_prompts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prompt_text TEXT NOT NULL,
+            prompt_date TEXT UNIQUE NOT NULL,
+            created_by INTEGER,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.4.0: Reading List
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS reading_list (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT,
+            url TEXT NOT NULL,
+            notes TEXT,
+            is_public INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.4.0: Wishlist
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS wishlist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            item_name TEXT NOT NULL,
+            item_link TEXT,
+            price TEXT,
+            priority INTEGER DEFAULT 1,
+            claimed_by INTEGER,
+            is_claimed INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.4.0: Notes
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            circle_id INTEGER,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            version INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS note_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            note_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            edited_by INTEGER,
+            edited_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.4.0: Message Groups
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS message_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            created_by INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS group_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            is_admin INTEGER DEFAULT 0,
+            joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(group_id, user_id)
+        )
+    """)
+    # v0.4.0: Hermes Prompts
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS hermes_prompts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            prompt_type TEXT NOT NULL,
+            prompt_text TEXT NOT NULL,
+            actionable_link TEXT,
+            is_dismissed INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.4.0: Ice Breakers
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ice_breakers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question TEXT NOT NULL,
+            category TEXT DEFAULT 'general',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.4.0: Friend-versaries
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS friend_versaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            friendship_id INTEGER NOT NULL,
+            anniversary_date TEXT NOT NULL,
+            years INTEGER DEFAULT 1,
+            notified INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.4.0: Albums
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS albums (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            cover_photo_url TEXT,
+            is_public INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS album_photos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            album_id INTEGER NOT NULL,
+            photo_url TEXT NOT NULL,
+            caption TEXT,
+            sort_order INTEGER DEFAULT 0,
+            exif_data TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # Seed ice breakers if empty
+    existing = cursor.execute("SELECT COUNT(*) as c FROM ice_breakers").fetchone()
+    if existing and existing["c"] == 0:
+        questions = [
+            ("What's your favorite childhood memory?", "general"),
+            ("If you could learn any skill instantly, what would it be?", "general"),
+            ("What's the best meal you've ever had?", "food"),
+            ("What's a book that changed your perspective?", "reading"),
+            ("If you could visit any place in the world, where would you go?", "travel"),
+            ("What's something you're proud of but never get to talk about?", "deep"),
+            ("What's your favorite way to spend a rainy day?", "lifestyle"),
+            ("What's a hobby you've always wanted to try?", "hobbies"),
+            ("What's the most interesting thing you learned recently?", "learning"),
+            ("If you had to eat one cuisine for the rest of your life, what would it be?", "food"),
+        ]
+        cursor.executemany("INSERT INTO ice_breakers (question, category) VALUES (?, ?)", questions)
+
+    # Migrate messages table: add group_id if missing
+    cursor.execute("PRAGMA table_info(messages)")
+    msg_cols = {r[1] for r in cursor.fetchall()}
+    if "group_id" not in msg_cols:
+        cursor.execute("ALTER TABLE messages ADD COLUMN group_id INTEGER")
 
     conn.commit()
     conn.close()
@@ -1148,3 +1353,396 @@ def verify_backup_code(user_id: int, code: str) -> bool:
             return True
     conn.close()
     return False
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Stories
+# ---------------------------------------------------------------------------
+
+def create_story(user_id: int, content_type: str, text_content: str = None, photo_url: str = None, video_url: str = None) -> int:
+    from datetime import datetime, timezone, timedelta
+    expires = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO stories (user_id, content_type, text_content, photo_url, video_url, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, content_type, text_content, photo_url, video_url, expires),
+    )
+    sid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return sid
+
+
+def get_active_stories(user_id: int) -> List[Dict[str, Any]]:
+    """Get active stories from friends of user_id."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT s.*, u.username, u.display_name, u.avatar_url
+           FROM stories s
+           JOIN users u ON u.id = s.user_id
+           WHERE s.expires_at > ?
+             AND s.user_id IN (
+                 SELECT CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END
+                 FROM friendships WHERE status = 'accepted' AND (requester_id = ? OR addressee_id = ?)
+             )
+           ORDER BY s.created_at DESC""",
+        (now, user_id, user_id, user_id),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def view_story(story_id: int, viewer_id: int) -> bool:
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO story_views (story_id, viewer_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+        (story_id, viewer_id),
+    )
+    conn.execute("UPDATE stories SET view_count = view_count + 1 WHERE id = ?", (story_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Daily Prompts
+# ---------------------------------------------------------------------------
+
+def get_daily_prompt(date_str: str = None) -> Optional[Dict[str, Any]]:
+    if date_str is None:
+        from datetime import datetime, timezone
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM daily_prompts WHERE prompt_date = ?", (date_str,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def create_daily_prompt(prompt_text: str, created_by: int) -> int:
+    from datetime import datetime, timezone
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO daily_prompts (prompt_text, prompt_date, created_by) VALUES (?, ?, ?) ON CONFLICT(prompt_date) DO UPDATE SET prompt_text=excluded.prompt_text",
+        (prompt_text, date_str, created_by),
+    )
+    conn.commit()
+    pid = cursor.lastrowid or conn.execute("SELECT id FROM daily_prompts WHERE prompt_date = ?", (date_str,)).fetchone()["id"]
+    conn.close()
+    return pid
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Ice Breakers
+# ---------------------------------------------------------------------------
+
+def get_random_ice_breaker(category: str = None) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    if category:
+        row = conn.execute(
+            "SELECT * FROM ice_breakers WHERE category = ? ORDER BY RANDOM() LIMIT 1", (category,)
+        ).fetchone()
+    else:
+        row = conn.execute("SELECT * FROM ice_breakers ORDER BY RANDOM() LIMIT 1").fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Albums (Photographer Tools)
+# ---------------------------------------------------------------------------
+
+def create_album(user_id: int, title: str, description: str = "", cover_photo_url: str = None, is_public: bool = False) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO albums (user_id, title, description, cover_photo_url, is_public) VALUES (?, ?, ?, ?, ?)",
+        (user_id, title, description, cover_photo_url, int(is_public)),
+    )
+    aid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return aid
+
+
+def get_album(album_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM albums WHERE id = ?", (album_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_user_albums(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM albums WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def add_photo_to_album(album_id: int, photo_url: str, caption: str = "", sort_order: int = 0, exif_data: str = None) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO album_photos (album_id, photo_url, caption, sort_order, exif_data) VALUES (?, ?, ?, ?, ?)",
+        (album_id, photo_url, caption, sort_order, exif_data),
+    )
+    pid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return pid
+
+
+def get_album_photos(album_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM album_photos WHERE album_id = ? ORDER BY sort_order, created_at",
+        (album_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Reading List
+# ---------------------------------------------------------------------------
+
+def add_to_reading_list(user_id: int, url: str, title: str = "", notes: str = "", is_public: bool = False) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO reading_list (user_id, url, title, notes, is_public) VALUES (?, ?, ?, ?, ?)",
+        (user_id, url, title, notes, int(is_public)),
+    )
+    rid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return rid
+
+
+def get_reading_list(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM reading_list WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Wishlist / Gift Registry
+# ---------------------------------------------------------------------------
+
+def add_wishlist_item(user_id: int, item_name: str, item_link: str = "", price: str = "", priority: int = 1) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO wishlist (user_id, item_name, item_link, price, priority) VALUES (?, ?, ?, ?, ?)",
+        (user_id, item_name, item_link, price, priority),
+    )
+    wid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return wid
+
+
+def get_wishlist(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM wishlist WHERE user_id = ? ORDER BY priority DESC", (user_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def claim_wishlist_item(item_id: int, claimed_by: int) -> bool:
+    conn = get_connection()
+    conn.execute(
+        "UPDATE wishlist SET claimed_by = ?, is_claimed = 1 WHERE id = ? AND is_claimed = 0",
+        (claimed_by, item_id),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Collaborative Notes
+# ---------------------------------------------------------------------------
+
+def create_note(user_id: int, title: str, content: str, circle_id: int = None) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO notes (user_id, title, content, circle_id) VALUES (?, ?, ?, ?)",
+        (user_id, title, content, circle_id),
+    )
+    nid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return nid
+
+
+def get_note(note_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def update_note(note_id: int, content: str, edited_by: int) -> bool:
+    conn = get_connection()
+    note = conn.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
+    if not note:
+        conn.close()
+        return False
+    # Save to history
+    conn.execute(
+        "INSERT INTO note_history (note_id, content, edited_by) VALUES (?, ?, ?)",
+        (note_id, note["content"], edited_by),
+    )
+    # Update note
+    new_version = (note["version"] or 0) + 1
+    conn.execute(
+        "UPDATE notes SET content = ?, version = ?, updated_at = datetime('now') WHERE id = ?",
+        (content, new_version, note_id),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def list_notes(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT n.* FROM notes n
+           LEFT JOIN circle_members cm ON cm.circle_id = n.circle_id
+           WHERE n.user_id = ? OR cm.member_id = ?
+           GROUP BY n.id
+           ORDER BY n.updated_at DESC""",
+        (user_id, user_id),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Message Groups (multi-person DMs)
+# ---------------------------------------------------------------------------
+
+def create_message_group(name: str, created_by: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO message_groups (name, created_by) VALUES (?, ?)",
+        (name, created_by),
+    )
+    gid = cursor.lastrowid
+    # Creator is admin
+    conn.execute("INSERT INTO group_members (group_id, user_id, is_admin) VALUES (?, ?, 1)", (gid, created_by))
+    conn.commit()
+    conn.close()
+    return gid
+
+
+def add_to_group(group_id: int, user_id: int) -> bool:
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO group_members (group_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+        (group_id, user_id),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_group_messages(group_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT m.*, u.username, u.display_name, u.avatar_url
+           FROM messages m
+           JOIN users u ON u.id = m.sender_id
+           WHERE m.group_id = ?
+           ORDER BY m.created_at DESC
+           LIMIT ?""",
+        (group_id, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def send_group_message(sender_id: int, group_id: int, content: str) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    # recipient_id set to sender_id for group messages (FK constraint workaround)
+    cursor.execute(
+        "INSERT INTO messages (sender_id, group_id, content, recipient_id) VALUES (?, ?, ?, ?)",
+        (sender_id, group_id, content, sender_id),
+    )
+    mid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return mid
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Hermes Prompts (Connection Encouragement)
+# ---------------------------------------------------------------------------
+
+def create_hermes_prompt(user_id: int, prompt_type: str, prompt_text: str, actionable_link: str = None) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO hermes_prompts (user_id, prompt_type, prompt_text, actionable_link) VALUES (?, ?, ?, ?)",
+        (user_id, prompt_type, prompt_text, actionable_link),
+    )
+    pid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return pid
+
+
+def get_hermes_prompts(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM hermes_prompts WHERE user_id = ? AND is_dismissed = 0 ORDER BY created_at DESC LIMIT 10",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def dismiss_hermes_prompt(prompt_id: int) -> bool:
+    conn = get_connection()
+    conn.execute("UPDATE hermes_prompts SET is_dismissed = 1 WHERE id = ?", (prompt_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Birthday / Friend-versary
+# ---------------------------------------------------------------------------
+
+def get_upcoming_birthdays(user_id: int, days_ahead: int = 7) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT u.id, u.username, u.display_name, u.avatar_url, u.birthday_month, u.birthday_day,
+                  f.id as friendship_id
+           FROM users u
+           JOIN friendships f ON (
+               (f.requester_id = ? AND f.addressee_id = u.id)
+               OR (f.addressee_id = ? AND f.requester_id = u.id)
+           )
+           WHERE f.status = 'accepted'
+             AND u.birthday_month IS NOT NULL
+             AND u.birthday_day IS NOT NULL
+             AND (
+                 strftime('%m-%d', printf('2000-%02d-%02d', u.birthday_month, u.birthday_day))
+                 BETWEEN strftime('%m-%d', 'now')
+                 AND strftime('%m-%d', 'now', '+' || ? || ' days')
+             )
+           ORDER BY u.birthday_month, u.birthday_day""",
+        (user_id, user_id, days_ahead),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

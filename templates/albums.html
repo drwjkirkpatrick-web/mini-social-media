@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Albums — mini-social-media{% endblock %}
+{% block content %}
+<div class="card" style="display:flex;justify-content:space-between;">
+  <h2>My Albums</h2>
+  <a href="{{ url_for('new_album') }}" class="btn btn-primary">New Album</a>
+</div>
+{% for album in albums %}
+<a href="{{ url_for('album_detail', album_id=album.id) }}" style="text-decoration:none;color:inherit;">
+  <div class="card">
+    <div style="display:flex;gap:1rem;">
+      {% if album.cover_photo_url %}
+        <img src="{{ album.cover_photo_url }}" style="width:120px;height:120px;object-fit:cover;border-radius:0.375rem;">
+      {% endif %}
+      <div>
+        <h3>{{ album.title }}</h3>
+        <p class="meta">{{ album.description or '' }}</p>
+      </div>
+    </div>
+  </div>
+</a>
+{% else %}
+<div class="card"><p class="meta">No albums yet.</p></div>
+{% endfor %}
+{% endblock %}

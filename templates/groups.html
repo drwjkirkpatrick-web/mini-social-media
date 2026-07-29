@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Groups — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>Message Groups</h2></div>
+{% for g in groups %}
+<a href="{{ url_for('group_chat', group_id=g.id) }}" style="text-decoration:none;color:inherit;">
+  <div class="card">
+    <h3>{{ g.name }}</h3>
+  </div>
+</a>
+{% else %}
+<div class="card"><p class="meta">No groups yet.</p></div>
+{% endfor %}
+{% endblock %}

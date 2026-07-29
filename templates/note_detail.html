@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ note.title }} — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{ note.title }}</h2>
+  <p class="meta">Version {{ note.version }} · Last updated {{ note.updated_at }}</p>
+  <pre style="white-space:pre-wrap;font-family:inherit;">{{ note.content }}</pre>
+</div>
+<div class="card">
+  <h3>Edit</h3>
+  <form method="POST" action="{{ url_for('edit_note', note_id=note.id) }}">
+    <textarea name="content" rows="8" style="width:100%;">{{ note.content }}</textarea>
+    <button type="submit" class="btn btn-primary">Update</button>
+  </form>
+</div>
+{% endblock %}

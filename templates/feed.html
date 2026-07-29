@@ -11,6 +11,7 @@
     <a href="{{ url_for('feed', sort='newest') }}" class="btn btn-small {% if sort=='newest' %}btn-primary{% endif %}">Newest</a>
     <a href="{{ url_for('feed', sort='oldest') }}" class="btn btn-small {% if sort=='oldest' %}btn-primary{% endif %}">Oldest</a>
     <a href="{{ url_for('feed', sort='engaged') }}" class="btn btn-small {% if sort=='engaged' %}btn-primary{% endif %}">Most Engaged</a>
+    <a href="{{ url_for('feed', sort='chronological_with_highlights') }}" class="btn btn-small {% if sort=='chronological_with_highlights' %}btn-primary{% endif %}">Highlights</a>
   </div>
   {% for post in posts %}
   <div class="card">
@@ -33,6 +34,18 @@
       {% elif post.content_type == 'photo' %}
         <img src="{{ post.photo_url }}" style="max-width:100%;border-radius:0.375rem;" alt="photo">
         {% if post.text_content %}<p style="margin-top:0.5rem;">{{ post.text_content }}</p>{% endif %}
+      {% elif post.content_type == 'video' %}
+        <video controls style="max-width:100%;border-radius:0.375rem;">
+          <source src="{{ post.video_url }}" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        {% if post.text_content %}<p style="margin-top:0.5rem;">{{ post.text_content }}</p>{% endif %}
+      {% elif post.content_type == 'voice' %}
+        <audio controls style="width:100%;">
+          <source src="{{ post.voice_url }}" type="audio/mpeg">
+          Your browser does not support the audio tag.
+        </audio>
+        {% if post.text_content %}<p style="margin-top:0.5rem;">{{ post.text_content }}</p>{% endif %}
       {% endif %}
     {% if post.content_warning %}
     </div>
@@ -42,10 +55,10 @@
         <button type="submit" class="btn btn-small" style="background:#eee;">Like ({{ post.like_count or 0 }})</button>
       </form>
       <div class="reaction-bar">
-        {% for rtype in ['heart','laugh','wow','sad','fire'] %}
+        {% for rtype in ['heart','laugh','wow','sad','fire','party','peach','floppy','black_heart','clover','pray','tada'] %}
           <form method="POST" action="{{ url_for('react_to_post', post_id=post.id) }}" style="display:inline;">
             <input type="hidden" name="reaction" value="{{ rtype }}">
-            <button type="submit" class="reaction-btn {% if post.user_reaction == rtype %}active{% endif %}">{{ {'heart':'❤️','laugh':'😂','wow':'😮','sad':'😢','fire':'🔥'}[rtype] }} {{ post.reactions[rtype] or '' }}</button>
+            <button type="submit" class="reaction-btn {% if post.user_reaction == rtype %}active{% endif %}">{{ {'heart':'❤️','laugh':'😂','wow':'😮','sad':'😢','fire':'🔥','party':'🥳','peach':'🍑','floppy':'💾','black_heart':'🖤','clover':'☘️','pray':'🙏','tada':'🎉'}[rtype] }} {{ post.reactions[rtype] or '' }}</button>
           </form>
         {% endfor %}
       </div>

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ owner.display_name or owner.username }}'s Wishlist — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{ owner.display_name or owner.username }}'s Wishlist</h2>
+</div>
+{% for item in items %}
+<div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+  <div>
+    <h3>{{ item.item_name }}</h3>
+    {% if item.item_link %}<a href="{{ item.item_link }}" target="_blank" rel="noopener">Link</a>{% endif %}
+    <p class="meta">Priority: {{ item.priority }}{% if item.price %} · {{ item.price }}{% endif %}</p>
+  </div>
+  {% if not item.is_claimed %}
+  <form method="POST" action="{{ url_for('claim_wishlist', item_id=item.id) }}">
+    <button type="submit" class="btn btn-primary btn-small">Claim (Secret)</button>
+  </form>
+  {% else %}
+  <span class="meta">Claimed! 🎁</span>
+  {% endif %}
+</div>
+{% else %}
+<div class="card"><p class="meta">No items yet.</p></div>
+{% endfor %}
+{% endblock %}

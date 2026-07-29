@@ -10,6 +10,8 @@
         <option value="text">Text</option>
         <option value="link">Link</option>
         <option value="photo">Photo</option>
+        <option value="video">Video (≤29 sec)</option>
+        <option value="voice">Voice Message</option>
       </select>
     </div>
     <div class="form-group" id="text_group">
@@ -26,6 +28,14 @@
       <label for="caption" style="margin-top:0.5rem;">Caption (optional)</label>
       <input type="text" id="caption" name="caption" placeholder="Describe your photo">
     </div>
+    <div class="form-group" id="video_group" style="display:none;">
+      <label for="video">Video (mp4, webm, mov — max 29 seconds, 30 MB)</label>
+      <input type="file" id="video" name="video" accept="video/*">
+    </div>
+    <div class="form-group" id="voice_group" style="display:none;">
+      <label for="voice">Voice Message (webm, ogg, mp3, m4a — max 5 min, 10 MB)</label>
+      <input type="file" id="voice" name="voice" accept="audio/*">
+    </div>
     <div class="form-group">
       <label for="visibility">Visibility</label>
       <select id="visibility" name="visibility">
@@ -40,9 +50,11 @@
 <script>
 function toggleFields() {
   var t = document.getElementById('content_type').value;
-  document.getElementById('text_group').style.display = (t === 'text') ? 'block' : 'none';
+  document.getElementById('text_group').style.display = (t === 'text' || t === 'photo' || t === 'video' || t === 'voice') ? 'block' : 'none';
   document.getElementById('link_group').style.display = (t === 'link') ? 'block' : 'none';
   document.getElementById('photo_group').style.display = (t === 'photo') ? 'block' : 'none';
+  document.getElementById('video_group').style.display = (t === 'video') ? 'block' : 'none';
+  document.getElementById('voice_group').style.display = (t === 'voice') ? 'block' : 'none';
 }
 toggleFields();
 </script>

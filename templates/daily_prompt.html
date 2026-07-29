@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Daily Prompt — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Daily Prompt</h2>
+  {% if prompt %}
+    <blockquote style="font-size:1.25rem;font-style:italic;border-left:4px solid var(--accent);padding-left:1rem;">{{ prompt.prompt_text }}</blockquote>
+    <p class="meta">{{ prompt.prompt_date }}</p>
+    <a href="{{ url_for('create_post') }}" class="btn btn-primary">Write a Post</a>
+  {% else %}
+    <p class="meta">No prompt set for today.</p>
+  {% endif %}
+</div>
+{% endblock %}

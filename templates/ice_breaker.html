@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Ice Breaker — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Ice Breaker</h2>
+  {% if question %}
+    <blockquote style="font-size:1.25rem;font-style:italic;border-left:4px solid var(--accent);padding-left:1rem;">{{ question.question }}</blockquote>
+    <p class="meta">Category: {{ question.category }}</p>
+  {% else %}
+    <p class="meta">No ice breakers available.</p>
+  {% endif %}
+  <a href="{{ url_for('ice_breaker') }}" class="btn btn-primary">New Question</a>
+</div>
+{% endblock %}

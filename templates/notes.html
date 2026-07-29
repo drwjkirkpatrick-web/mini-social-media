@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Notes — mini-social-media{% endblock %}
+{% block content %}
+<div class="card" style="display:flex;justify-content:space-between;">
+  <h2>Notes</h2>
+  <a href="{{ url_for('new_note') }}" class="btn btn-primary">New Note</a>
+</div>
+{% for note in notes %}
+<a href="{{ url_for('note_detail', note_id=note.id) }}" style="text-decoration:none;color:inherit;">
+  <div class="card">
+    <h3>{{ note.title }}</h3>
+    <p class="meta">Version {{ note.version }} · {{ note.updated_at[:10] }}</p>
+  </div>
+</a>
+{% else %}
+<div class="card"><p class="meta">No notes yet.</p></div>
+{% endfor %}
+{% endblock %}

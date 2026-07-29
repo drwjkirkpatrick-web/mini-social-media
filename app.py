@@ -776,6 +776,8 @@ def create_post():
             visibility = "friends"
 
         photo_url = None
+        video_url = None
+        voice_url = None
         if "photo" in request.files:
             file = request.files["photo"]
             if file and file.filename and allowed_file(file.filename):
@@ -784,6 +786,26 @@ def create_post():
                 except ValueError as e:
                     flash(str(e), "error")
                     return render_template("create_post.html"), 400
+        if "video" in request.files:
+            file = request.files["video"]
+            if file and file.filename:
+                from uploads import allowed_video_file, save_video
+                if allowed_video_file(file.filename):
+                    try:
+                        video_url = save_video(file, user["id"])
+                    except ValueError as e:
+                        flash(str(e), "error")
+                        return render_template("create_post.html"), 400
+        if "voice" in request.files:
+            file = request.files["voice"]
+            if file and file.filename:
+                from uploads import allowed_voice_file, save_voice
+                if allowed_voice_file(file.filename):
+                    try:
+                        voice_url = save_voice(file, user["id"])
+                    except ValueError as e:
+                        flash(str(e), "error")
+                        return render_template("create_post.html"), 400
 
         # Validate content_type
         if content_type == "text":
@@ -805,6 +827,18 @@ def create_post():
                 return render_template("create_post.html"), 400
             post_text = request.form.get("caption", "").strip() or None
             link_url = None
+        elif content_type == "video":
+            if not video_url:
+                flash("Please upload a video (≤29 seconds, mp4/webm/mov).", "error")
+                return render_template("create_post.html"), 400
+            post_text = text_content or None
+            link_url = None
+        elif content_type == "voice":
+            if not voice_url:
+                flash("Please upload a voice message.", "error")
+                return render_template("create_post.html"), 400
+            post_text = text_content or None
+            link_url = None
         else:
             flash("Invalid content type.", "error")
             return render_template("create_post.html"), 400
@@ -821,6 +855,15 @@ def create_post():
             user["id"], content_type, text_content=post_text,
             link_url=link_url, photo_url=photo_url, visibility=visibility,
         )
+
+        # Store video/voice URLs
+        conn = database.get_connection()
+        if video_url:
+            conn.execute("UPDATE posts SET video_url = ? WHERE id = ?", (video_url, post_id))
+        if voice_url:
+            conn.execute("UPDATE posts SET voice_url = ? WHERE id = ?", (voice_url, post_id))
+        conn.commit()
+        conn.close()
 
         # Update moderation status if auto-approved or auto-rejected
         conn = database.get_connection()
@@ -1241,6 +1284,347 @@ def _emit_notification(user_id: int, event: str, data: dict):
         socketio.emit(event, data, room=f"user_{user_id}")
     except Exception:
         pass  # SocketIO not connected, silently ignore
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Stories
+# ---------------------------------------------------------------------------
+
+@app.route("/stories")
+@login_required
+def stories():
+    me = _current_user()
+    stories_list = database.get_active_stories(me["id"])
+    # Group by user
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for s in stories_list:
+        grouped[s["user_id"]].append(s)
+    return render_template("stories.html", grouped=grouped)
+
+
+@app.route("/story/new", methods=["POST"])
+@login_required
+def create_story():
+    user = _current_user()
+    content_type = request.form.get("content_type", "text")
+    text_content = request.form.get("text_content", "").strip()
+    photo_url = None
+    video_url = None
+    if "photo" in request.files:
+        file = request.files["photo"]
+        if file and file.filename and allowed_file(file.filename):
+            photo_url = save_photo(file, user["id"])
+    if "video" in request.files:
+        file = request.files["video"]
+        if file and file.filename:
+            from uploads import allowed_video_file, save_video
+            if allowed_video_file(file.filename):
+                video_url = save_video(file, user["id"])
+    sid = database.create_story(user["id"], content_type, text_content, photo_url, video_url)
+    flash("Story posted! It will disappear in 24 hours.", "success")
+    return redirect(url_for("feed"))
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Albums (Photographer Tools)
+# ---------------------------------------------------------------------------
+
+@app.route("/albums")
+@login_required
+def albums():
+    me = _current_user()
+    my_albums = database.list_user_albums(me["id"])
+    return render_template("albums.html", albums=my_albums)
+
+
+@app.route("/album/new", methods=["GET", "POST"])
+@login_required
+def new_album():
+    user = _current_user()
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        description = request.form.get("description", "").strip()
+        if not title:
+            flash("Title is required.", "error")
+            return render_template("new_album.html"), 400
+        aid = database.create_album(user["id"], title, description)
+        flash("Album created!", "success")
+        return redirect(url_for("album_detail", album_id=aid))
+    return render_template("new_album.html")
+
+
+@app.route("/album/<int:album_id>")
+def album_detail(album_id):
+    album = database.get_album(album_id)
+    if not album:
+        abort(404)
+    photos = database.get_album_photos(album_id)
+    return render_template("album_detail.html", album=album, photos=photos)
+
+
+@app.route("/album/<int:album_id>/add", methods=["POST"])
+@login_required
+def add_album_photo(album_id):
+    user = _current_user()
+    album = database.get_album(album_id)
+    if not album or album["user_id"] != user["id"]:
+        abort(403)
+    if "photo" in request.files:
+        file = request.files["photo"]
+        if file and file.filename and allowed_file(file.filename):
+            url = save_photo(file, user["id"])
+            caption = request.form.get("caption", "").strip()
+            # Simple EXIF extraction
+            exif_data = None
+            try:
+                from PIL import Image
+                from PIL.ExifTags import TAGS
+                img = Image.open(file.stream)
+                exif = img._getexif()
+                if exif:
+                    exif_dict = {TAGS.get(k, k): str(v)[:100] for k, v in exif.items()}
+                    exif_data = str(exif_dict)[:500]
+            except Exception:
+                pass
+            database.add_photo_to_album(album_id, url, caption, exif_data=exif_data)
+            flash("Photo added!", "success")
+    return redirect(url_for("album_detail", album_id=album_id))
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Daily Prompts
+# ---------------------------------------------------------------------------
+
+@app.route("/daily-prompt")
+def daily_prompt():
+    prompt = database.get_daily_prompt()
+    return render_template("daily_prompt.html", prompt=prompt)
+
+
+@app.route("/admin/daily-prompt", methods=["POST"])
+@login_required
+@admin_required
+def admin_daily_prompt():
+    text = request.form.get("prompt_text", "").strip()
+    if text:
+        user = _current_user()
+        database.create_daily_prompt(text, user["id"])
+        flash("Daily prompt set!", "success")
+    return redirect(url_for("feed"))
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Ice Breakers
+# ---------------------------------------------------------------------------
+
+@app.route("/ice-breaker")
+@login_required
+def ice_breaker():
+    question = database.get_random_ice_breaker()
+    return render_template("ice_breaker.html", question=question)
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Reading List
+# ---------------------------------------------------------------------------
+
+@app.route("/reading-list")
+@login_required
+def reading_list():
+    me = _current_user()
+    items = database.get_reading_list(me["id"])
+    return render_template("reading_list.html", items=items)
+
+
+@app.route("/reading-list/add", methods=["POST"])
+@login_required
+def add_reading():
+    me = _current_user()
+    url = request.form.get("url", "").strip()
+    title = request.form.get("title", "").strip()
+    notes = request.form.get("notes", "").strip()
+    if not url:
+        flash("URL is required.", "error")
+        return redirect(url_for("reading_list"))
+    database.add_to_reading_list(me["id"], url, title, notes)
+    flash("Added to reading list!", "success")
+    return redirect(url_for("reading_list"))
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Wishlist
+# ---------------------------------------------------------------------------
+
+@app.route("/wishlist/<int:user_id>")
+@login_required
+def wishlist(user_id):
+    items = database.get_wishlist(user_id)
+    owner = database.get_user(user_id)
+    return render_template("wishlist.html", items=items, owner=owner)
+
+
+@app.route("/wishlist/add", methods=["POST"])
+@login_required
+def add_wishlist():
+    me = _current_user()
+    name = request.form.get("item_name", "").strip()
+    link = request.form.get("item_link", "").strip()
+    price = request.form.get("price", "").strip()
+    if not name:
+        flash("Item name is required.", "error")
+        return redirect(url_for("profile"))
+    database.add_wishlist_item(me["id"], name, link, price)
+    flash("Added to wishlist!", "success")
+    return redirect(url_for("profile"))
+
+
+@app.route("/wishlist/<int:item_id>/claim", methods=["POST"])
+@login_required
+def claim_wishlist(item_id):
+    me = _current_user()
+    database.claim_wishlist_item(item_id, me["id"])
+    flash("Item claimed! The user won't know until later.", "success")
+    return redirect(url_for("feed"))
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Notes
+# ---------------------------------------------------------------------------
+
+@app.route("/notes")
+@login_required
+def notes():
+    me = _current_user()
+    items = database.list_notes(me["id"])
+    return render_template("notes.html", notes=items)
+
+
+@app.route("/note/new", methods=["GET", "POST"])
+@login_required
+def new_note():
+    if request.method == "POST":
+        me = _current_user()
+        title = request.form.get("title", "").strip()
+        content = request.form.get("content", "").strip()
+        circle_id = request.form.get("circle_id", None)
+        if not title or not content:
+            flash("Title and content are required.", "error")
+            return render_template("new_note.html"), 400
+        nid = database.create_note(me["id"], title, content, circle_id)
+        flash("Note created!", "success")
+        return redirect(url_for("note_detail", note_id=nid))
+    return render_template("new_note.html")
+
+
+@app.route("/note/<int:note_id>")
+@login_required
+def note_detail(note_id):
+    note = database.get_note(note_id)
+    if not note:
+        abort(404)
+    return render_template("note_detail.html", note=note)
+
+
+@app.route("/note/<int:note_id>/edit", methods=["POST"])
+@login_required
+def edit_note(note_id):
+    me = _current_user()
+    content = request.form.get("content", "").strip()
+    if content:
+        database.update_note(note_id, content, me["id"])
+        flash("Note updated!", "success")
+    return redirect(url_for("note_detail", note_id=note_id))
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Message Groups
+# ---------------------------------------------------------------------------
+
+@app.route("/groups")
+@login_required
+def groups():
+    me = _current_user()
+    conn = database.get_connection()
+    rows = conn.execute(
+        """SELECT g.* FROM message_groups g
+           JOIN group_members gm ON gm.group_id = g.id
+           WHERE gm.user_id = ?""",
+        (me["id"],),
+    ).fetchall()
+    conn.close()
+    return render_template("groups.html", groups=[dict(r) for r in rows])
+
+
+@app.route("/group/new", methods=["POST"])
+@login_required
+def new_group():
+    me = _current_user()
+    name = request.form.get("name", "").strip()
+    members = request.form.getlist("members")
+    if not name:
+        flash("Group name is required.", "error")
+        return redirect(url_for("friends"))
+    gid = database.create_message_group(name, me["id"])
+    for mid in members:
+        database.add_to_group(gid, int(mid))
+    flash("Group created!", "success")
+    return redirect(url_for("group_chat", group_id=gid))
+
+
+@app.route("/group/<int:group_id>")
+@login_required
+def group_chat(group_id):
+    msgs = database.get_group_messages(group_id)
+    return render_template("group_chat.html", messages=msgs, group_id=group_id)
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Hermes Prompts (Connection Encouragement)
+# ---------------------------------------------------------------------------
+
+@app.route("/hermes/prompts")
+@login_required
+def hermes_prompts():
+    me = _current_user()
+    prompts = database.get_hermes_prompts(me["id"])
+    return render_template("hermes_prompts.html", prompts=prompts)
+
+
+@app.route("/hermes/prompt/<int:prompt_id>/dismiss", methods=["POST"])
+@login_required
+def dismiss_hermes_prompt_route(prompt_id):
+    database.dismiss_hermes_prompt(prompt_id)
+    return redirect(url_for("hermes_prompts"))
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Birthdays
+# ---------------------------------------------------------------------------
+
+@app.route("/birthdays")
+@login_required
+def birthdays():
+    me = _current_user()
+    upcoming = database.get_upcoming_birthdays(me["id"], days_ahead=30)
+    return render_template("birthdays.html", birthdays=upcoming)
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0: Mood
+# ---------------------------------------------------------------------------
+
+@app.route("/mood", methods=["POST"])
+@login_required
+def set_mood():
+    me = _current_user()
+    mood = request.form.get("mood", "").strip()
+    conn = database.get_connection()
+    conn.execute("UPDATE users SET mood = ? WHERE id = ?", (mood, me["id"]))
+    conn.commit()
+    conn.close()
+    flash("Mood updated!", "success")
+    return redirect(url_for("profile"))
 
 
 # ---------------------------------------------------------------------------

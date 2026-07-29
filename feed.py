@@ -23,6 +23,7 @@ def get_feed(user_id: int, sort: str = "newest", limit: int = 50, offset: int = 
         WHERE p.moderation_status = 'approved'
           AND p.is_draft = 0
           AND p.is_scheduled = 0
+          AND p.expires_at IS NULL
           AND (
               p.user_id = ?
               OR (
@@ -68,6 +69,27 @@ def get_feed(user_id: int, sort: str = "newest", limit: int = 50, offset: int = 
             recency = hours ** (-0.5)
             return post["engagement_score"] + recency * 10
         posts.sort(key=_score, reverse=True)
+
+    elif sort == "chronological_with_highlights":
+        # Find one highlight per friend (most engaged post in last 48h)
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        cutoff = datetime.fromtimestamp(now.timestamp() - 48*3600, tz=timezone.utc).isoformat()
+        
+        # Get top post per friend
+        conn = get_connection()
+        friend_ids = [p["user_id"] for p in posts if p["user_id"] != user_id]
+        highlights = []
+        seen_friends = set()
+        for p in sorted(posts, key=lambda x: x["engagement_score"], reverse=True):
+            if p["user_id"] != user_id and p["user_id"] not in seen_friends and p["created_at"] > cutoff:
+                highlights.append(p)
+                seen_friends.add(p["user_id"])
+        
+        # Re-sort: highlights first, then chronological
+        highlight_ids = {p["id"] for p in highlights}
+        result = highlights + [p for p in posts if p["id"] not in highlight_ids]
+        posts = result
 
     return posts
 
