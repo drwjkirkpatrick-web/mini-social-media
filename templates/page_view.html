@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }} — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>{{ page.title }}</h1>
+  <p class="meta">By <a href="{{ url_for('user_profile', user_id=owner.id) }}">{{ owner.display_name or owner.username }}</a>
+    {% if page.is_public %}<span style="color:var(--success);"> · Public</span>
+    {% else %}<span style="color:var(--warning);"> · Friends only</span>
+    {% endif %}
+  </p>
+  {% if content.bio %}
+    <p>{{ content.bio }}</p>
+  {% endif %}
+  {% if content.links %}
+    <ul>
+      {% for link in content.links %}
+        <li><a href="{{ link }}" target="_blank" rel="noopener">{{ link }}</a></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% if content.featured_photos %}
+    <div class="grid-3">
+      {% for url in content.featured_photos %}
+        <img src="{{ url }}" class="photo-thumb" alt="featured">
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if is_owner %}
+    <a href="{{ url_for('profile_edit') }}" class="btn btn-primary btn-small" style="margin-top:1rem;">Edit Page</a>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Moderation Queue — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Moderation Queue ({{ posts|length }} pending)</h2>
+  {% if posts %}
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="text-align:left;border-bottom:2px solid #ddd;">
+          <th>Author</th>
+          <th>Type</th>
+          <th>Preview</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for post in posts %}
+        <tr style="border-bottom:1px solid #eee;">
+          <td>{{ post.display_name or post.username }}</td>
+          <td>{{ post.content_type }}</td>
+          <td>
+            {% if post.content_type == 'text' %}
+              {{ post.text_content[:80] }}...
+            {% elif post.content_type == 'link' %}
+              <a href="{{ post.link_url }}" target="_blank">{{ post.link_url[:60] }}...</a>
+            {% elif post.content_type == 'photo' %}
+              <img src="{{ post.photo_url }}" style="max-height:80px;border-radius:0.25rem;" alt="">
+            {% endif %}
+          </td>
+          <td>
+            <form method="POST" action="{{ url_for('moderation_action', post_id=post.id, action='approve') }}" style="display:inline;">
+              <button type="submit" class="btn btn-primary btn-small">Approve</button>
+            </form>
+            <form method="POST" action="{{ url_for('moderation_action', post_id=post.id, action='reject') }}" style="display:inline;">
+              <button type="submit" class="btn btn-danger btn-small">Reject</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="meta">No pending posts. All clear!</p>
+  {% endif %}
+</div>
+{% endblock %}

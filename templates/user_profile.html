@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ target.display_name or target.username }} — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;align-items:center;gap:1rem;">
+    {% if target.avatar_url %}<img src="{{ target.avatar_url }}" class="avatar avatar-lg" alt="">{% endif %}
+    <div>
+      <h2>{{ target.display_name or target.username }}</h2>
+      <p class="meta">@{{ target.username }}{% if target.pronouns %} · {{ target.pronouns }}{% endif %}{% if target.location %} · {{ target.location }}{% endif %}</p>
+      <p>{{ target.bio or "" }}</p>
+    </div>
+  </div>
+  {% if not is_self %}
+    <div style="margin-top:1rem;">
+      {% if is_friend %}
+        <span style="color:var(--success);">Friends</span>
+      {% elif friendship and friendship.status == 'pending' %}
+        <span class="meta">Friend request pending</span>
+      {% else %}
+        <form method="POST" action="{{ url_for('friend_request', user_id=target.id) }}" style="display:inline;">
+          <button type="submit" class="btn btn-primary btn-small">Add Friend</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Recent Posts</h3>
+  {% for post in posts %}
+    {% if is_self or is_friend or post.visibility == 'friends' %}
+      <div style="border-bottom:1px solid #eee;padding:0.75rem 0;">
+        <p class="meta">{{ post.created_at }}</p>
+        {% if post.content_type == 'text' %}
+          <p>{{ post.text_content }}</p>
+        {% elif post.content_type == 'link' %}
+          <p><a href="{{ post.link_url }}" target="_blank" rel="noopener">{{ post.link_url }}</a></p>
+        {% elif post.content_type == 'photo' %}
+          <img src="{{ post.photo_url }}" style="max-width:100%;border-radius:0.375rem;" alt="">
+          {% if post.text_content %}<p>{{ post.text_content }}</p>{% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
+  {% else %}
+    <p class="meta">No posts yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}

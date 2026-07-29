@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}New Post — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Create a Post</h2>
+  <form method="POST" action="{{ url_for('create_post') }}" enctype="multipart/form-data">
+    <div class="form-group">
+      <label for="content_type">Content Type</label>
+      <select id="content_type" name="content_type" onchange="toggleFields()">
+        <option value="text">Text</option>
+        <option value="link">Link</option>
+        <option value="photo">Photo</option>
+      </select>
+    </div>
+    <div class="form-group" id="text_group">
+      <label for="text_content">Text</label>
+      <textarea id="text_content" name="text_content" rows="4" maxlength="2000" placeholder="What's on your mind?"></textarea>
+    </div>
+    <div class="form-group" id="link_group" style="display:none;">
+      <label for="link_url">URL</label>
+      <input type="url" id="link_url" name="link_url" placeholder="https://example.com">
+    </div>
+    <div class="form-group" id="photo_group" style="display:none;">
+      <label for="photo">Photo</label>
+      <input type="file" id="photo" name="photo" accept="image/*">
+      <label for="caption" style="margin-top:0.5rem;">Caption (optional)</label>
+      <input type="text" id="caption" name="caption" placeholder="Describe your photo">
+    </div>
+    <div class="form-group">
+      <label for="visibility">Visibility</label>
+      <select id="visibility" name="visibility">
+        <option value="friends">Friends only</option>
+        <option value="only_me">Only me</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Post</button>
+    <a href="{{ url_for('feed') }}" class="btn" style="background:#eee;color:#333;">Cancel</a>
+  </form>
+</div>
+<script>
+function toggleFields() {
+  var t = document.getElementById('content_type').value;
+  document.getElementById('text_group').style.display = (t === 'text') ? 'block' : 'none';
+  document.getElementById('link_group').style.display = (t === 'link') ? 'block' : 'none';
+  document.getElementById('photo_group').style.display = (t === 'photo') ? 'block' : 'none';
+}
+toggleFields();
+</script>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ target.display_name or target.username }}'s Photos — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{ target.display_name or target.username }}'s Photos</h2>
+  {% if photos %}
+    <div class="grid-3">
+    {% for photo in photos %}
+      <a href="{{ url_for('user_profile', user_id=target.id) }}">
+        <img src="{{ photo.photo_url }}" class="photo-thumb" alt="photo">
+      </a>
+    {% endfor %}
+    </div>
+  {% else %}
+    <p class="meta">No photos yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

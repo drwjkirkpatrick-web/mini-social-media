@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}mini-social-media{% endblock %}</title>
+  <style>
+    :root { --bg: #f5f7fa; --card: #fff; --text: #333; --accent: #4a90d9; --accent2: #357abd; --danger: #d9534f; --success: #5cb85c; --warning: #f0ad4e; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    .container { max-width: 800px; margin: 0 auto; padding: 0 1rem; }
+    nav { background: var(--card); border-bottom: 1px solid #ddd; padding: 0.75rem 0; position: sticky; top: 0; z-index: 10; }
+    nav .container { display: flex; justify-content: space-between; align-items: center; }
+    nav a { color: var(--accent); text-decoration: none; font-weight: 600; margin-left: 1rem; }
+    nav a:hover { color: var(--accent2); }
+    .logo { font-size: 1.25rem; color: var(--text); }
+    .flash { padding: 0.75rem 1rem; border-radius: 0.375rem; margin: 1rem 0; }
+    .flash.success { background: #e6f4ea; color: var(--success); border: 1px solid var(--success); }
+    .flash.error { background: #fce8e6; color: var(--danger); border: 1px solid var(--danger); }
+    .flash.info { background: #e8f0fe; color: var(--accent); border: 1px solid var(--accent); }
+    .card { background: var(--card); border-radius: 0.5rem; padding: 1.25rem; margin: 1rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .btn { display: inline-block; padding: 0.5rem 1rem; border: none; border-radius: 0.375rem; cursor: pointer; text-decoration: none; font-size: 0.95rem; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent2); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-small { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
+    input, textarea, select { width: 100%; padding: 0.5rem; margin: 0.25rem 0 0.75rem; border: 1px solid #ccc; border-radius: 0.375rem; font-family: inherit; }
+    label { font-weight: 600; font-size: 0.9rem; }
+    .form-group { margin-bottom: 0.75rem; }
+    .meta { font-size: 0.8rem; color: #777; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 0.5rem; background: #ddd; }
+    .avatar-lg { width: 80px; height: 80px; }
+    footer { text-align: center; padding: 2rem 0; font-size: 0.8rem; color: #999; border-top: 1px solid #ddd; margin-top: 2rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+    .photo-thumb { width: 100%; height: 180px; object-fit: cover; border-radius: 0.375rem; cursor: pointer; }
+    @media (max-width: 600px) { .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <a href="{{ url_for('feed') }}" class="logo">mini-social-media</a>
+      <div>
+        {% if session.user_id %}
+          <a href="{{ url_for('feed') }}">Feed</a>
+          <a href="{{ url_for('friends') }}">Friends</a>
+          <a href="{{ url_for('profile') }}">Profile</a>
+          {% if session.role == 'admin' %}
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('moderation_queue') }}">Moderation</a>
+          {% endif %}
+          <a href="{{ url_for('logout') }}">Logout</a>
+        {% else %}
+          <a href="{{ url_for('login') }}">Login</a>
+          <a href="{{ url_for('signup') }}">Sign Up</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </div>
+  <footer>
+    <div class="container">
+      mini-social-media — privacy-first friends-only social media
+    </div>
+  </footer>
+</body>
+</html>

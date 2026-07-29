@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}New Page — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Create Personal Page</h2>
+  <form method="POST" action="{{ url_for('new_page') }}">
+    <div class="form-group">
+      <label for="title">Title</label>
+      <input type="text" id="title" name="title" required>
+    </div>
+    <div class="form-group">
+      <label for="slug">Slug (URL-friendly)</label>
+      <input type="text" id="slug" name="slug" placeholder="my-page">
+    </div>
+    <div class="form-group">
+      <label for="bio">Bio</label>
+      <textarea id="bio" name="bio" rows="4" placeholder="Tell visitors about yourself"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="links">Links (one per line)</label>
+      <textarea id="links" name="links" rows="3" placeholder="https://example.com"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="featured_photos">Featured Photos (comma-separated URLs)</label>
+      <input type="text" id="featured_photos" name="featured_photos">
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" name="is_public" value="1"> Make this page public (friends-only by default)
+      </label>
+    </div>
+    <button type="submit" class="btn btn-primary">Create Page</button>
+  </form>
+</div>
+{% endblock %}

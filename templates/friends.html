@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Friends — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Friends</h2>
+  {% if friends %}
+    {% for f in friends %}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid #eee;">
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <img src="{{ f.avatar_url or '' }}" class="avatar" alt="">
+          <a href="{{ url_for('user_profile', user_id=f.id) }}">{{ f.display_name or f.username }}</a>
+        </div>
+        <form method="POST" action="{{ url_for('remove_friend', friendship_id=f.friendship_id) }}" style="display:inline;">
+          <button type="submit" class="btn btn-danger btn-small">Remove</button>
+        </form>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="meta">No friends yet. <a href="{{ url_for('feed') }}">Browse the feed</a> to find people.</p>
+  {% endif %}
+</div>
+
+{% if received %}
+<div class="card">
+  <h3>Friend Requests Received</h3>
+  {% for r in received %}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid #eee;">
+      <div style="display:flex;align-items:center;gap:0.5rem;">
+        <img src="{{ r.avatar_url or '' }}" class="avatar" alt="">
+        <span>{{ r.display_name or r.username }}</span>
+      </div>
+      <div>
+        <form method="POST" action="{{ url_for('accept_request', request_id=r.id) }}" style="display:inline;">
+          <button type="submit" class="btn btn-primary btn-small">Accept</button>
+        </form>
+        <form method="POST" action="{{ url_for('reject_request', request_id=r.id) }}" style="display:inline;">
+          <button type="submit" class="btn btn-small" style="background:#eee;">Decline</button>
+        </form>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if sent %}
+<div class="card">
+  <h3>Requests Sent</h3>
+  {% for s in sent %}
+    <div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid #eee;">
+      <img src="{{ s.avatar_url or '' }}" class="avatar" alt="">
+      <span>{{ s.display_name or s.username }} — pending</span>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

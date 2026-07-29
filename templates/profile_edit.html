@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Edit Profile — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Edit Profile</h2>
+  <form method="POST" action="{{ url_for('profile_edit') }}" enctype="multipart/form-data">
+    <div class="form-group">
+      <label for="display_name">Display Name</label>
+      <input type="text" id="display_name" name="display_name" value="{{ user.display_name or '' }}">
+    </div>
+    <div class="form-group">
+      <label for="pronouns">Pronouns</label>
+      <input type="text" id="pronouns" name="pronouns" value="{{ user.pronouns or '' }}" placeholder="e.g., they/them">
+    </div>
+    <div class="form-group">
+      <label for="location">Location</label>
+      <input type="text" id="location" name="location" value="{{ user.location or '' }}">
+    </div>
+    <div class="form-group">
+      <label for="bio">Bio</label>
+      <textarea id="bio" name="bio" rows="4" maxlength="500">{{ user.bio or '' }}</textarea>
+    </div>
+    <div class="form-group">
+      <label for="avatar">Avatar Photo</label>
+      <input type="file" id="avatar" name="avatar" accept="image/*">
+    </div>
+    <div class="form-group">
+      <label for="cover">Cover Photo</label>
+      <input type="file" id="cover" name="cover" accept="image/*">
+    </div>
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="{{ url_for('profile') }}" class="btn" style="background:#eee;color:#333;">Cancel</a>
+  </form>
+</div>
+{% endblock %}
