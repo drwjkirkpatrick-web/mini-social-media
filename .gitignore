@@ -30,3 +30,6 @@ venv/
 
 # OS
 .DS_Store
+
+# Local analysis (not for repo)
+GAP_ANALYSIS.md

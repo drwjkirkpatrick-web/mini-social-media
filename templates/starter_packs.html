@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Starter Packs — mini-social-media{% endblock %}
+{% block content %}
+<div class="card" style="display:flex;justify-content:space-between;">
+  <h2>Starter Packs</h2>
+  <a href="{{ url_for('new_starter_pack') }}" class="btn btn-primary">New Pack</a>
+</div>
+{% for pack in packs %}
+<div class="card">
+  <h3><a href="{{ url_for('starter_pack_detail', pack_id=pack.id) }}">{{ pack.name }}</a></h3>
+  <p class="meta">by {{ pack.display_name or pack.username }} · {{ pack.member_count }} member(s)</p>
+  {% if pack.description %}
+  <p>{{ pack.description }}</p>
+  {% endif %}
+</div>
+{% else %}
+<div class="card"><p>No starter packs yet. <a href="{{ url_for('new_starter_pack') }}">Create one</a>.</p></div>
+{% endfor %}
+{% endblock %}

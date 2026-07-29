@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Muted Accounts — mini-social-media{% endblock %}
+{% block content %}
+<div class="card"><h2>Muted Accounts</h2>
+  <p class="meta">Muted users are hidden from your feed. They are not notified.
+  <a href="{{ url_for('settings') }}">Back to settings</a></p>
+</div>
+{% for m in muted %}
+<div class="card">
+  <div style="display:flex;align-items:center;">
+    <img src="{{ m.avatar_url or '' }}" class="avatar" alt="">
+    <a href="{{ url_for('user_profile', user_id=m.target_id) }}">{{ m.display_name or m.username }}</a>
+    <span class="meta" style="margin-left:0.5rem;">@{{ m.username }}</span>
+  </div>
+  <form method="POST" action="{{ url_for('unmute_user_route', user_id=m.target_id) }}" style="display:inline;margin-top:0.5rem;">
+    <button type="submit" class="btn btn-small">Unmute</button>
+  </form>
+</div>
+{% else %}
+<div class="card"><p class="meta">You haven't muted anyone.</p></div>
+{% endfor %}
+{% endblock %}

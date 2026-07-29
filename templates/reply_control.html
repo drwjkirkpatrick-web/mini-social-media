@@ -1,0 +1,21 @@
+{#
+  Reply control partial — embeddable in post creation or post detail pages.
+  Usage: {% include "reply_control.html" %}
+  Expects `post` to be available (dict with at least `id`) and renders the
+  dropdown preselected to the current reply scope (defaults to 'friends').
+#}
+<div class="reply-control card" style="margin-top:10px;">
+  <h3 style="margin:0 0 6px 0; font-size:1em;">Who can reply?</h3>
+  <form method="POST" action="{{ url_for('set_reply_control_route', post_id=post.id) }}">
+    <div class="form-group" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <label for="reply_scope_{{ post.id }}" style="font-size:0.9em; margin:0;">Reply scope:</label>
+      <select id="reply_scope_{{ post.id }}" name="reply_scope" class="form-control" style="flex:1; min-width:140px;">
+        <option value="everyone"   {% if reply_scope|default('friends') == 'everyone' %}selected{% endif %}>Everyone</option>
+        <option value="friends"    {% if reply_scope|default('friends') == 'friends' %}selected{% endif %}>Friends</option>
+        <option value="mentioned"  {% if reply_scope|default('friends') == 'mentioned' %}selected{% endif %}>Mentioned only</option>
+        <option value="nobody"     {% if reply_scope|default('friends') == 'nobody' %}selected{% endif %}>Nobody</option>
+      </select>
+      <button type="submit" class="btn btn-primary" style="flex:0;">Save</button>
+    </div>
+  </form>
+</div>

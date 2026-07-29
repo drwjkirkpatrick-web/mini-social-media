@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ mod_list.name }} — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h2>{{ mod_list.name }}</h2>
+    <a href="{{ url_for('mod_lists') }}" class="btn btn-small">Back</a>
+  </div>
+  <p class="meta">
+    <span class="badge badge-{% if mod_list.list_type == 'block' %}danger{% else %}warning{% endif %}">{{ mod_list.list_type }}</span>
+    · {{ mod_list.member_count }} member{{ '' if mod_list.member_count == 1 else 's' }}
+    · by {{ mod_list.display_name or mod_list.username }}
+  </p>
+  {% if mod_list.description %}<p>{{ mod_list.description }}</p>{% endif %}
+  <form method="POST" action="{{ url_for('mod_list_subscribe' if mod_list.id not in my_subs else 'mod_list_unsubscribe', list_id=mod_list.id) }}" style="margin-top:0.5rem;">
+    {% if mod_list.id not in my_subs %}
+      <button type="submit" class="btn btn-primary btn-small">Subscribe</button>
+    {% else %}
+      <button type="submit" class="btn btn-small">Unsubscribe</button>
+    {% endif %}
+  </form>
+</div>
+<div class="card">
+  <h3>Add Member</h3>
+  <form method="POST" action="{{ url_for('mod_list_add_member', list_id=mod_list.id) }}">
+    <div class="form-group"><label for="target_user_id">User ID</label><input type="number" id="target_user_id" name="target_user_id" required></div>
+    <button type="submit" class="btn btn-primary btn-small">Add to List</button>
+  </form>
+</div>
+<div class="card">
+  <h3>Members</h3>
+  {% for m in members %}
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;padding:0.25rem 0;">
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <img src="{{ m.avatar_url or '' }}" class="avatar" alt="">
+      <span>{{ m.display_name or m.username }}</span>
+    </div>
+    <form method="POST" action="{{ url_for('mod_list_remove_member', list_id=mod_list.id) }}">
+      <input type="hidden" name="target_user_id" value="{{ m.target_user_id }}">
+      <button type="submit" class="btn btn-small">Remove</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="meta">No members yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}

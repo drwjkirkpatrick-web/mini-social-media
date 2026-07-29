@@ -7,7 +7,7 @@ WHY: Dict-like access makes template rendering and JSON serialization easier.
 import sqlite3
 import os
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Set
 
 # NOTE: Import config here creates a dependency; we avoid circular imports
 # by only using get_config() at call sites, not at module init.
@@ -613,6 +613,114 @@ def init_database():
             post_id INTEGER NOT NULL,
             sort_order INTEGER DEFAULT 0,
             UNIQUE(series_id, post_id)
+        )
+    """)
+    # v0.6.0: Moderation Lists
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mod_lists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            list_type TEXT NOT NULL DEFAULT 'block' CHECK(list_type IN ('block','mute')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mod_list_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mod_list_id INTEGER NOT NULL REFERENCES mod_lists(id) ON DELETE CASCADE,
+            target_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            added_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(mod_list_id, target_user_id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mod_list_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            mod_list_id INTEGER NOT NULL REFERENCES mod_lists(id) ON DELETE CASCADE,
+            subscribed_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(user_id, mod_list_id)
+        )
+    """)
+    # v0.6.0: Content Labels
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS post_labels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            label_type TEXT NOT NULL CHECK(label_type IN ('sensitive','nsfw','spoiler','violence','political','ai_generated')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_label_prefs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            label_type TEXT NOT NULL,
+            action TEXT NOT NULL DEFAULT 'warn' CHECK(action IN ('show','warn','hide')),
+            UNIQUE(user_id, label_type)
+        )
+    """)
+    # v0.6.0: Muted Words
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS muted_words (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            word TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(user_id, word)
+        )
+    """)
+    # v0.6.0: Custom Feeds
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS custom_feeds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            filter_type TEXT NOT NULL DEFAULT 'hashtag',
+            filter_value TEXT NOT NULL,
+            is_pinned INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.6.0: Post reply controls (who can reply to a post)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS post_reply_controls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            reply_scope TEXT NOT NULL DEFAULT 'friends' CHECK(reply_scope IN ('everyone','friends','mentioned','nobody')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(post_id)
+        )
+    """)
+    # Mutes (private — unlike blocks which are public)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mutes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            target_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(user_id, target_id)
+        )
+    """)
+    # v0.6.0: Starter Packs (curated lists of users to follow)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS starter_packs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS starter_pack_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pack_id INTEGER NOT NULL REFERENCES starter_packs(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            sort_order INTEGER DEFAULT 0,
+            UNIQUE(pack_id, user_id)
         )
     """)
     # Seed achievements if empty
@@ -2077,3 +2185,760 @@ def get_series_posts(series_id: int) -> List[Dict[str, Any]]:
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0: Content Labels
+# ---------------------------------------------------------------------------
+
+VALID_LABEL_TYPES = ('sensitive', 'nsfw', 'spoiler', 'violence', 'political', 'ai_generated')
+
+
+def add_post_label(post_id: int, label_type: str) -> int:
+    """Attach a content label to a post. Returns the label row id."""
+    if label_type not in VALID_LABEL_TYPES:
+        raise ValueError(f"Invalid label type: {label_type}")
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO post_labels (post_id, label_type) VALUES (?, ?)",
+        (post_id, label_type),
+    )
+    label_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return label_id
+
+
+def get_post_labels(post_id: int) -> List[Dict[str, Any]]:
+    """Return all labels attached to a post."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM post_labels WHERE post_id = ? ORDER BY created_at",
+        (post_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_user_label_prefs(user_id: int) -> Dict[str, str]:
+    """Return {label_type: action} for the user's label preferences."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT label_type, action FROM user_label_prefs WHERE user_id = ?",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return {r["label_type"]: r["action"] for r in rows}
+
+
+def set_user_label_pref(user_id: int, label_type: str, action: str) -> int:
+    """Insert or update a user's preference for a label type. Returns the pref row id."""
+    if label_type not in VALID_LABEL_TYPES:
+        raise ValueError(f"Invalid label type: {label_type}")
+    if action not in ('show', 'warn', 'hide'):
+        raise ValueError(f"Invalid action: {action}")
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO user_label_prefs (user_id, label_type, action)
+           VALUES (?, ?, ?)
+           ON CONFLICT(user_id, label_type) DO UPDATE SET action = excluded.action""",
+        (user_id, label_type, action),
+    )
+    pref_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return pref_id
+
+
+def get_visible_posts_with_labels(user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+    """Return approved, non-draft, non-scheduled posts filtered by the user's label prefs.
+
+    Posts that carry a label the user has set to 'hide' are excluded. The post's
+    labels are attached as a 'labels' list on each returned post dict.
+    """
+    conn = get_connection()
+    # Label types the user wants hidden
+    hidden_types = [
+        r["label_type"]
+        for r in conn.execute(
+            "SELECT label_type FROM user_label_prefs WHERE user_id = ? AND action = 'hide'",
+            (user_id,),
+        ).fetchall()
+    ]
+    if hidden_types:
+        placeholders = ",".join("?" for _ in hidden_types)
+        query = f"""
+            SELECT p.*, u.username, u.display_name, u.avatar_url
+            FROM posts p
+            JOIN users u ON u.id = p.user_id
+            WHERE p.moderation_status = 'approved'
+              AND p.is_draft = 0
+              AND p.is_scheduled = 0
+              AND p.id NOT IN (
+                  SELECT post_id FROM post_labels WHERE label_type IN ({placeholders})
+              )
+            ORDER BY p.created_at DESC
+            LIMIT ?
+        """
+        rows = conn.execute(query, hidden_types + [limit]).fetchall()
+    else:
+        rows = conn.execute(
+            """SELECT p.*, u.username, u.display_name, u.avatar_url
+               FROM posts p
+               JOIN users u ON u.id = p.user_id
+               WHERE p.moderation_status = 'approved'
+                 AND p.is_draft = 0
+                 AND p.is_scheduled = 0
+               ORDER BY p.created_at DESC
+               LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    posts = [dict(r) for r in rows]
+    # Attach labels to each post
+    for post in posts:
+        label_rows = conn.execute(
+            "SELECT label_type FROM post_labels WHERE post_id = ?", (post["id"],)
+        ).fetchall()
+        post["labels"] = [r["label_type"] for r in label_rows]
+    conn.close()
+    return posts
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0: Moderation Lists CRUD
+# ---------------------------------------------------------------------------
+
+def create_mod_list(user_id: int, name: str, description: str = "", list_type: str = "block") -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO mod_lists (user_id, name, description, list_type) VALUES (?, ?, ?, ?)",
+        (user_id, name, description, list_type),
+    )
+    lid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return lid
+
+
+def get_mod_list(list_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT ml.*, u.username, u.display_name, u.avatar_url,
+                  (SELECT COUNT(*) FROM mod_list_members m WHERE m.mod_list_id = ml.id) AS member_count
+           FROM mod_lists ml
+           JOIN users u ON u.id = ml.user_id
+           WHERE ml.id = ?""",
+        (list_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_mod_lists(limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT ml.*, u.username, u.display_name, u.avatar_url,
+                  (SELECT COUNT(*) FROM mod_list_members m WHERE m.mod_list_id = ml.id) AS member_count
+           FROM mod_lists ml
+           JOIN users u ON u.id = ml.user_id
+           ORDER BY ml.created_at DESC
+           LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def list_my_mod_lists(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT ml.*,
+                  (SELECT COUNT(*) FROM mod_list_members m WHERE m.mod_list_id = ml.id) AS member_count
+           FROM mod_lists ml
+           WHERE ml.user_id = ?
+           ORDER BY ml.created_at DESC""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def add_to_mod_list(list_id: int, target_user_id: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO mod_list_members (mod_list_id, target_user_id) VALUES (?, ?)",
+        (list_id, target_user_id),
+    )
+    mid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return mid
+
+
+def remove_from_mod_list(list_id: int, target_user_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM mod_list_members WHERE mod_list_id = ? AND target_user_id = ?",
+        (list_id, target_user_id),
+    )
+    removed = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return removed
+
+
+def get_mod_list_members(list_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT m.*, u.username, u.display_name, u.avatar_url
+           FROM mod_list_members m
+           JOIN users u ON u.id = m.target_user_id
+           WHERE m.mod_list_id = ?
+           ORDER BY m.added_at DESC""",
+        (list_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def subscribe_mod_list(user_id: int, list_id: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO mod_list_subscriptions (user_id, mod_list_id) VALUES (?, ?)",
+        (user_id, list_id),
+    )
+    sid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return sid
+
+
+def unsubscribe_mod_list(user_id: int, list_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM mod_list_subscriptions WHERE user_id = ? AND mod_list_id = ?",
+        (user_id, list_id),
+    )
+    removed = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return removed
+
+
+def get_subscribed_mod_lists(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT s.*, ml.name, ml.description, ml.list_type,
+                  u.username AS owner_username, u.display_name AS owner_display_name,
+                  (SELECT COUNT(*) FROM mod_list_members m WHERE m.mod_list_id = ml.id) AS member_count
+           FROM mod_list_subscriptions s
+           JOIN mod_lists ml ON ml.id = s.mod_list_id
+           JOIN users u ON u.id = ml.user_id
+           WHERE s.user_id = ?
+           ORDER BY s.subscribed_at DESC""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_all_muted_from_subscribed(user_id: int) -> List[int]:
+    """Return target user IDs from all mute-type lists the user has subscribed to."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT DISTINCT m.target_user_id
+           FROM mod_list_subscriptions s
+           JOIN mod_lists ml ON ml.id = s.mod_list_id
+           JOIN mod_list_members m ON m.mod_list_id = ml.id
+           WHERE s.user_id = ? AND ml.list_type = 'mute'""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [r["target_user_id"] for r in rows]
+
+
+def get_all_blocked_from_subscribed(user_id: int) -> List[int]:
+    """Return target user IDs from all block-type lists the user has subscribed to."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT DISTINCT m.target_user_id
+           FROM mod_list_subscriptions s
+           JOIN mod_lists ml ON ml.id = s.mod_list_id
+           JOIN mod_list_members m ON m.mod_list_id = ml.id
+           WHERE s.user_id = ? AND ml.list_type = 'block'""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [r["target_user_id"] for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0: Custom Feeds
+# ---------------------------------------------------------------------------
+
+VALID_FILTER_TYPES = ('hashtag', 'user', 'keyword', 'photos')
+
+
+def create_custom_feed(user_id: int, name: str, filter_type: str, filter_value: str) -> int:
+    """Create a custom feed. Returns the new feed id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO custom_feeds (user_id, name, filter_type, filter_value) VALUES (?, ?, ?, ?)",
+        (user_id, name, filter_type, filter_value),
+    )
+    feed_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return feed_id
+
+
+def list_custom_feeds(user_id: int) -> List[Dict[str, Any]]:
+    """Return all custom feeds for a user, pinned first then newest."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT * FROM custom_feeds
+           WHERE user_id = ?
+           ORDER BY is_pinned DESC, created_at DESC""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_custom_feed(feed_id: int) -> Optional[Dict[str, Any]]:
+    """Return a single custom feed by id, or None."""
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM custom_feeds WHERE id = ?", (feed_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def delete_custom_feed(feed_id: int, user_id: int) -> bool:
+    """Delete a custom feed owned by user_id. Returns True if a row was removed."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM custom_feeds WHERE id = ? AND user_id = ?",
+        (feed_id, user_id),
+    )
+    removed = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return removed
+
+
+def toggle_pin_custom_feed(feed_id: int, user_id: int) -> bool:
+    """Toggle the pinned state of a feed owned by user_id.
+
+    Returns True if the feed is now pinned, False if now unpinned, or None
+    (falsy) if the feed was not found / not owned by the user.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    row = cursor.execute(
+        "SELECT is_pinned FROM custom_feeds WHERE id = ? AND user_id = ?",
+        (feed_id, user_id),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return False
+    new_state = 0 if row["is_pinned"] else 1
+    cursor.execute(
+        "UPDATE custom_feeds SET is_pinned = ? WHERE id = ?",
+        (new_state, feed_id),
+    )
+    conn.commit()
+    conn.close()
+    return bool(new_state)
+
+
+def get_custom_feed_posts(feed_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+    """Return posts matching a custom feed's filter.
+
+    filter_type determines the join/where:
+      - 'hashtag': posts tagged with the hashtag in filter_value
+      - 'user':    posts by the user whose username matches filter_value
+      - 'keyword': approved posts whose text_content contains filter_value
+      - 'photos': approved posts that have a photo_url or photo_urls
+    All queries return only approved, non-draft, non-scheduled posts, newest first.
+    """
+    feed = get_custom_feed(feed_id)
+    if not feed:
+        return []
+    ftype = feed["filter_type"]
+    fval = feed["filter_value"]
+    conn = get_connection()
+    if ftype == 'hashtag':
+        rows = conn.execute(
+            """SELECT p.*, u.username, u.display_name, u.avatar_url
+               FROM post_hashtags ph
+               JOIN hashtags h ON h.id = ph.hashtag_id
+               JOIN posts p ON p.id = ph.post_id
+               JOIN users u ON u.id = p.user_id
+               WHERE h.tag = ? AND p.moderation_status = 'approved'
+                 AND p.is_draft = 0 AND p.is_scheduled = 0
+               ORDER BY p.created_at DESC LIMIT ?""",
+            (fval.lower(), limit),
+        ).fetchall()
+    elif ftype == 'user':
+        rows = conn.execute(
+            """SELECT p.*, u.username, u.display_name, u.avatar_url
+               FROM posts p
+               JOIN users u ON u.id = p.user_id
+               WHERE u.username = ? AND p.moderation_status = 'approved'
+                 AND p.is_draft = 0 AND p.is_scheduled = 0
+               ORDER BY p.created_at DESC LIMIT ?""",
+            (fval, limit),
+        ).fetchall()
+    elif ftype == 'keyword':
+        rows = conn.execute(
+            """SELECT p.*, u.username, u.display_name, u.avatar_url
+               FROM posts p
+               JOIN users u ON u.id = p.user_id
+               WHERE p.text_content LIKE ? AND p.moderation_status = 'approved'
+                 AND p.is_draft = 0 AND p.is_scheduled = 0
+               ORDER BY p.created_at DESC LIMIT ?""",
+            (f"%{fval}%", limit),
+        ).fetchall()
+    elif ftype == 'photos':
+        rows = conn.execute(
+            """SELECT p.*, u.username, u.display_name, u.avatar_url
+               FROM posts p
+               JOIN users u ON u.id = p.user_id
+               WHERE p.moderation_status = 'approved'
+                 AND p.is_draft = 0 AND p.is_scheduled = 0
+                 AND (p.photo_url IS NOT NULL AND p.photo_url != ''
+                      OR p.photo_urls IS NOT NULL AND p.photo_urls != '')
+               ORDER BY p.created_at DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    else:
+        rows = []
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0: Muted Words CRUD
+# ---------------------------------------------------------------------------
+
+def add_muted_word(user_id: int, word: str) -> int:
+    """Add a muted word for the user. Returns the row id.
+
+    NOTE: Words are stored as-is (original case) but matching is case-insensitive.
+    Duplicate (user_id, word) pairs are ignored via ON CONFLICT.
+    """
+    word = word.strip()
+    if not word:
+        raise ValueError("Word cannot be empty.")
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO muted_words (user_id, word) VALUES (?, ?) ON CONFLICT DO NOTHING",
+        (user_id, word),
+    )
+    wid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return wid
+
+
+def remove_muted_word(user_id: int, word: str) -> bool:
+    """Remove a muted word for the user. Returns True if a row was deleted."""
+    word = word.strip()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM muted_words WHERE user_id = ? AND word = ?",
+        (user_id, word),
+    )
+    removed = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return removed
+
+
+def list_muted_words(user_id: int) -> List[Dict[str, Any]]:
+    """Return all muted word rows for a user, newest first."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM muted_words WHERE user_id = ? ORDER BY created_at DESC",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_muted_word_list(user_id: int) -> List[str]:
+    """Return just the list of muted word strings for a user (for filtering)."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT word FROM muted_words WHERE user_id = ? ORDER BY created_at DESC",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [r["word"] for r in rows]
+
+
+def is_word_muted(user_id: int, text: str) -> bool:
+    """Check if any of the user's muted words appears in text (case-insensitive).
+
+    NOTE: Substring matching — a muted word matches if it appears anywhere in
+    the text, regardless of surrounding characters.
+    """
+    if not text:
+        return False
+    words = get_muted_word_list(user_id)
+    if not words:
+        return False
+    lowered = text.lower()
+    return any(w.lower() in lowered for w in words)
+
+
+# ---------------------------------------------------------------------------
+# Mute Accounts CRUD (private — unlike blocks which are public)
+# ---------------------------------------------------------------------------
+
+def mute_user(user_id: int, target_id: int) -> int:
+    """Mute a user. Returns the mute row id.
+
+    NOTE: Mutes are private — the muted user is not notified. Duplicate
+    (user_id, target_id) pairs are ignored via ON CONFLICT.
+    """
+    if user_id == target_id:
+        raise ValueError("Cannot mute yourself.")
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO mutes (user_id, target_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+        (user_id, target_id),
+    )
+    mid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return mid
+
+
+def unmute_user(user_id: int, target_id: int) -> bool:
+    """Unmute a user. Returns True if a row was deleted."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM mutes WHERE user_id = ? AND target_id = ?",
+        (user_id, target_id),
+    )
+    removed = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return removed
+
+
+def is_muted(user_id: int, target_id: int) -> bool:
+    """Check if user_id has muted target_id."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT 1 FROM mutes WHERE user_id = ? AND target_id = ?",
+        (user_id, target_id),
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def list_muted(user_id: int) -> List[Dict[str, Any]]:
+    """Return muted user rows for a user, newest first.
+
+    Joins users so the template has username/display_name/avatar_url.
+    """
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT m.id, m.target_id, m.created_at,
+                  u.username, u.display_name, u.avatar_url
+           FROM mutes m
+           JOIN users u ON u.id = m.target_id
+           WHERE m.user_id = ?
+           ORDER BY m.created_at DESC""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_muted_ids(user_id: int) -> Set[int]:
+    """Return the set of muted user IDs for efficient feed filtering."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT target_id FROM mutes WHERE user_id = ?",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return {r["target_id"] for r in rows}
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0: Reply Controls
+# ---------------------------------------------------------------------------
+
+def set_reply_control(post_id: int, reply_scope: str) -> int:
+    """Set the reply scope for a post. Returns the row id.
+
+    reply_scope must be one of: 'everyone', 'friends', 'mentioned', 'nobody'.
+    Uses INSERT ... ON CONFLICT to upsert (one row per post via UNIQUE(post_id)).
+    """
+    if reply_scope not in ("everyone", "friends", "mentioned", "nobody"):
+        raise ValueError(f"Invalid reply_scope: {reply_scope}")
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO post_reply_controls (post_id, reply_scope)
+           VALUES (?, ?)
+           ON CONFLICT(post_id) DO UPDATE SET reply_scope=excluded.reply_scope""",
+        (post_id, reply_scope),
+    )
+    rcid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return rcid
+
+
+def get_reply_control(post_id: int) -> Optional[str]:
+    """Return the reply_scope for a post, or 'friends' if none is set (default)."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT reply_scope FROM post_reply_controls WHERE post_id = ?",
+        (post_id,),
+    ).fetchone()
+    conn.close()
+    if row:
+        return row["reply_scope"]
+    return "friends"
+
+
+def can_reply(post_id: int, user_id: int, is_friend: bool, is_mentioned: bool) -> bool:
+    """Check whether a user may reply (comment) on a post.
+
+    - 'everyone'  → always True
+    - 'friends'   → True if is_friend
+    - 'mentioned' → True if is_mentioned
+    - 'nobody'    → always False
+    """
+    scope = get_reply_control(post_id)
+    if scope == "everyone":
+        return True
+    if scope == "friends":
+        return bool(is_friend)
+    if scope == "mentioned":
+        return bool(is_mentioned)
+    if scope == "nobody":
+        return False
+    return True 
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0: Starter Packs
+# ---------------------------------------------------------------------------
+
+def create_starter_pack(user_id: int, name: str, description: str = "") -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO starter_packs (user_id, name, description) VALUES (?, ?, ?)",
+        (user_id, name, description),
+    )
+    pid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return pid
+
+
+def get_starter_pack(pack_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM starter_packs WHERE id = ?", (pack_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_starter_packs(limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT sp.*, u.username, u.display_name,
+                  (SELECT COUNT(*) FROM starter_pack_members m WHERE m.pack_id = sp.id) AS member_count
+           FROM starter_packs sp
+           JOIN users u ON u.id = sp.user_id
+           ORDER BY sp.created_at DESC
+           LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def add_to_starter_pack(pack_id: int, user_id: int, sort_order: int = 0) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO starter_pack_members (pack_id, user_id, sort_order) VALUES (?, ?, ?)",
+        (pack_id, user_id, sort_order),
+    )
+    mid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return mid
+
+
+def remove_from_starter_pack(pack_id: int, user_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM starter_pack_members WHERE pack_id = ? AND user_id = ?",
+        (pack_id, user_id),
+    )
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+
+def get_starter_pack_members(pack_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT m.*, u.username, u.display_name, u.avatar_url
+           FROM starter_pack_members m
+           JOIN users u ON u.id = m.user_id
+           WHERE m.pack_id = ?
+           ORDER BY m.sort_order, u.username""",
+        (pack_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def follow_all_in_pack(follower_id: int, pack_id: int) -> int:
+    """Send friend requests to all pack members who aren't already friends.
+
+    Returns the count of new friend requests created.
+    """
+    members = get_starter_pack_members(pack_id)
+    count = 0
+    for member in members:
+        target_id = member["user_id"]
+        if target_id == follower_id:
+            continue
+        friendship = get_friendship(follower_id, target_id)
+        if friendship:
+            # Already friends or request already pending/rejected
+            continue
+        send_friend_request(follower_id, target_id)
+        create_notification(
+            target_id, "friend_request", 0,
+            f"You have a new friend request from a starter pack.",
+        )
+        count += 1
+    return count

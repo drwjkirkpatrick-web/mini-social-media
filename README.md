@@ -11,8 +11,10 @@ checking in on friends, this is a place built for *real* community.
 
 Now containerized, real-time, installable on your phone, hardened against
 the quantum computing revolution, and packed with features that make photographers
-smile and friends stay connected. Because the future is coming — and your data
-should be ready.
+smile and friends stay connected. With v0.6.0, we've added Bluesky-inspired
+moderation and discovery tools — custom feeds, content labels, moderation lists,
+mute accounts, muted words, starter packs, and reply controls. Because the
+future is coming — and your data should be ready.
 
 ---
 
@@ -93,6 +95,24 @@ should be ready.
 - **Code Optimizations** — Thread-local DB connections, request deduplication cache,
   lazy image loading with IntersectionObserver.
 
+### Bluesky-Inspired Moderation & Discovery (v0.6.0)
+- **Custom Feeds** — Create named feeds filtered by hashtag, user, keyword, or
+  photos. Pin favorites for quick access. `/custom-feeds`
+- **Content Labels** — Self-label posts (sensitive, NSFW, spoiler, violence,
+  political, AI-generated). Per-user preferences: show, warn, or hide each
+  label type. `/settings/labels`
+- **Moderation Lists** — Create shareable block or mute lists. Subscribe to
+  community-curated lists to apply bulk moderation in one click. `/modlists`
+- **Mute Accounts** — Mute users without blocking. Muted accounts' posts are
+  hidden from your feed; they don't know they're muted. `/settings/muted`
+- **Muted Words** — Filter specific words, phrases, or hashtags from your feed
+  and notifications. Case-insensitive matching. `/settings/muted-words`
+- **Starter Packs** — Curated bundles of recommended users. New members can
+  follow everyone in a pack with one click — perfect for onboarding. `/packs`
+- **Reply Controls** — Post authors choose who can reply: everyone, friends,
+  mentioned only, or nobody. Default is `friends`, consistent with the
+  friends-only philosophy.
+
 ---
 
 ## Quick Start
@@ -130,7 +150,7 @@ create_user("admin", "admin@example.com", hash_password("changeme"), role="admin
 |-------|-----------|
 | Backend | Flask + Werkzeug + Gunicorn |
 | Real-Time | Flask-SocketIO (threading async) |
-| Database | SQLite (WAL mode, 25+ tables) |
+| Database | SQLite (WAL mode, 54 tables) |
 | Auth | PBKDF2 (legacy) + Argon2id (default, quantum-safe) |
 | Photos | Werkzeug secure_filename + timestamp prefix |
 | Video/Voice | HTML5 player, ffprobe duration check |
@@ -138,7 +158,7 @@ create_user("admin", "admin@example.com", hash_password("changeme"), role="admin
 | Audit | SHA-256 hash chain with nonce |
 | Deployment | Docker + Docker Compose |
 | PWA | Web App Manifest + Service Worker |
-| Tests | pytest (129 tests, all passing) |
+| Tests | pytest (250 tests, all passing) |
 
 ---
 
@@ -146,15 +166,15 @@ create_user("admin", "admin@example.com", hash_password("changeme"), role="admin
 
 ```
 mini-social-media/
-├── app.py                 # Flask app + SocketIO + 100+ routes
-├── database.py            # SQLite schema (25+ tables) + CRUD
+├── app.py                 # Flask app + SocketIO + 127 routes
+├── database.py            # SQLite schema (54 tables) + CRUD
 ├── blockchain.py          # Tamper-evident audit hash chain
 ├── auth.py                # PBKDF2 + Argon2id hashing
 ├── config.py              # Environment-based configuration
 ├── feed.py                # Privacy-aware feed engine (4 sort modes)
 ├── uploads.py             # Photo, video, voice upload handler
 ├── moderation.py          # Agent moderation scoring
-├── templates/              # 42 Jinja2 HTML templates
+├── templates/              # 71 Jinja2 HTML templates
 ├── static/
 │   ├── uploads/            # User media storage
 │   └── sw.js               # PWA service worker
@@ -167,7 +187,7 @@ mini-social-media/
 ├── PROMPTS_v3.md           # 30 v0.3.0 prompts
 ├── PROMPTS_v4.md           # 30 v0.4.0 prompts
 ├── PROMPTS_v5.md           # 30 v0.5.0 prompts
-├── tests/                  # 71 pytest test files
+├── tests/                  # 80 pytest test files
 └── README.md
 ```
 
@@ -195,7 +215,7 @@ All settings load from environment variables with sensible defaults:
 .venv/bin/python -m pytest tests/ -v
 ```
 
-129 tests covering:
+250 tests covering:
 - Database schema, connection layer, CRUD
 - Password hashing (PBKDF2 + Argon2id) + transparent migration
 - Session management + rate limiting
@@ -231,6 +251,13 @@ All settings load from environment variables with sensible defaults:
 - Backups
 - Post series
 - Community guidelines
+- Custom feeds (hashtag, user, keyword, photo filters)
+- Content labels (self-labeling + user preferences)
+- Moderation lists (block/mute lists, subscriptions)
+- Mute accounts
+- Muted words (case-insensitive filtering)
+- Starter packs (follow-all bundles)
+- Reply controls (everyone/friends/mentioned/nobody)
 - PWA manifest + service worker
 - Docker file presence
 - Full end-to-end integration flow
@@ -286,6 +313,7 @@ Supported actions: `moderate`, `notify`, `summarize`, `connection_prompt`,
 | **v0.3.0** | Docker, WebSocket real-time, PWA, quantum-safe Argon2id passwords |
 | **v0.4.0** | Short video (≤29s), voice messages, stories, professional photo albums, daily prompts, ice breakers, reading list, wishlist, collaborative notes, message groups, birthday reminders, mood status, expanded reactions (🥳🍑💾🖤☘️🙏🎉), "chronological with highlights" feed sort, Hermes AI integration |
 | **v0.5.0** | Expanded reactions (🦄♥️✨💕), admin disk usage, profile improvements, 13 healthy-social-media achievements, Stripe donations, backup, logo/motto swap, photo-first sort, community guidelines, post series, code optimizations |
+| **v0.6.0** | Bluesky-inspired: custom feeds, content labels, moderation lists, mute accounts, muted words, starter packs, reply controls — 7 new modules, 121 new tests |
 
 ---
 

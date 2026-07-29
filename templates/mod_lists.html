@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Moderation Lists — mini-social-media{% endblock %}
+{% block content %}
+<div class="card" style="display:flex;justify-content:space-between;">
+  <h2>Moderation Lists</h2>
+  <a href="{{ url_for('new_mod_list') }}" class="btn btn-primary">New List</a>
+</div>
+{% for ml in mod_lists %}
+<div class="card">
+  <h3><a href="{{ url_for('mod_list_detail', list_id=ml.id) }}">{{ ml.name }}</a></h3>
+  <p class="meta">
+    <span class="badge badge-{% if ml.list_type == 'block' %}danger{% else %}warning{% endif %}">{{ ml.list_type }}</span>
+    · {{ ml.member_count }} member{{ '' if ml.member_count == 1 else 's' }}
+    · by {{ ml.display_name or ml.username }}
+  </p>
+  {% if ml.description %}<p>{{ ml.description }}</p>{% endif %}
+  <form method="POST" action="{{ url_for('mod_list_subscribe' if ml.id not in my_subs else 'mod_list_unsubscribe', list_id=ml.id) }}" style="margin-top:0.5rem;">
+    {% if ml.id not in my_subs %}
+      <button type="submit" class="btn btn-primary btn-small">Subscribe</button>
+    {% else %}
+      <button type="submit" class="btn btn-small">Unsubscribe</button>
+    {% endif %}
+  </form>
+</div>
+{% else %}
+<div class="card"><p>No moderation lists yet. <a href="{{ url_for('new_mod_list') }}">Create one</a>.</p></div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ feed.name }} — mini-social-media{% endblock %}
+{% block content %}
+<h2>📰 {{ feed.name }}</h2>
+<p class="meta">Filter: {{ feed.filter_type }} — "{{ feed.filter_value }}"</p>
+<p><a href="{{ url_for('custom_feeds') }}">&larr; Back to feeds</a></p>
+
+{% if posts %}
+  {% for post in posts %}
+  <div class="card">
+    <div style="display:flex;align-items:center;">
+      <img src="{{ post.avatar_url or '' }}" class="avatar" alt="">
+      <a href="{{ url_for('user_profile', user_id=post.user_id) }}">{{ post.display_name or post.username }}</a>
+    </div>
+    <p style="margin-top:0.5rem;">{{ post.text_content or '' }}</p>
+    {% if post.photo_url %}
+      <img src="{{ post.photo_url }}" style="max-width:100%;border-radius:8px;">
+    {% endif %}
+    <div style="font-size:0.85rem;color:#666;margin-top:0.25rem;">{{ post.created_at[:10] }}</div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="card"><p class="meta">No posts match this feed yet.</p></div>
+{% endif %}
+{% endblock %}

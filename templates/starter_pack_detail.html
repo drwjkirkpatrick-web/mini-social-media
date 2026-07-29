@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ pack.name }} — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>📦 {{ pack.name }}</h2>
+  <p>{{ pack.description or '' }}</p>
+  <p class="meta">Created {{ pack.created_at[:10] }}</p>
+</div>
+
+<div class="card">
+  <h3>Follow All</h3>
+  <p>Send friend requests to everyone in this pack at once.</p>
+  <form method="POST" action="{{ url_for('follow_all_pack_members', pack_id=pack.id) }}">
+    <button type="submit" class="btn btn-primary">Follow All Members</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Members ({{ members|length }})</h3>
+  {% for member in members %}
+    <div style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;">
+      <img src="{{ member.avatar_url or '' }}" class="avatar" alt="">
+      <span>{{ member.display_name or member.username }}</span>
+      <form method="POST" action="{{ url_for('remove_pack_member', pack_id=pack.id) }}" style="margin-left:auto;">
+        <input type="hidden" name="user_id" value="{{ member.user_id }}">
+        <button type="submit" class="btn btn-small">Remove</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="meta">No members yet.</p>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h3>Add Member</h3>
+  <form method="POST" action="{{ url_for('add_pack_member', pack_id=pack.id) }}">
+    <div class="form-group">
+      <label>User ID</label>
+      <input type="number" name="user_id" required placeholder="e.g. 3">
+    </div>
+    <button type="submit" class="btn btn-primary">Add to Pack</button>
+  </form>
+</div>
+{% endblock %}

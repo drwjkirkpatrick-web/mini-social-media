@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Custom Feeds — mini-social-media{% endblock %}
+{% block content %}
+<h2>📰 My Custom Feeds</h2>
+
+<div class="card">
+  <h3>Create a New Feed</h3>
+  <form method="POST" action="{{ url_for('new_custom_feed') }}">
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" name="name" required maxlength="200" placeholder="e.g. Travel photos">
+    </div>
+    <div class="form-group">
+      <label>Filter Type</label>
+      <select name="filter_type">
+        <option value="hashtag">Hashtag</option>
+        <option value="user">User</option>
+        <option value="keyword">Keyword</option>
+        <option value="photos">Photos Only</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Filter Value</label>
+      <input type="text" name="filter_value" required maxlength="200" placeholder="e.g. travel (for photos, leave blank)">
+    </div>
+    <button type="submit" class="btn btn-primary">Create Feed</button>
+  </form>
+</div>
+
+<h3>Your Feeds</h3>
+{% for feed in feeds %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+    <div>
+      {% if feed.is_pinned %}📌 {% endif %}
+      <a href="{{ url_for('custom_feed_detail', feed_id=feed.id) }}"><strong>{{ feed.name }}</strong></a>
+      <span class="meta" style="margin-left:0.5rem;">({{ feed.filter_type }}: {{ feed.filter_value }})</span>
+    </div>
+    <div style="display:inline;">
+      <form method="POST" action="{{ url_for('pin_custom_feed', feed_id=feed.id) }}" style="display:inline;">
+        <button type="submit" class="btn btn-small">{{ 'Unpin' if feed.is_pinned else 'Pin' }}</button>
+      </form>
+      <form method="POST" action="{{ url_for('delete_custom_feed', feed_id=feed.id) }}" style="display:inline;"
+            onsubmit="return confirm('Delete this feed?');">
+        <button type="submit" class="btn btn-small btn-danger">Delete</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card"><p class="meta">No custom feeds yet. Create one above!</p></div>
+{% endfor %}
+{% endblock %}

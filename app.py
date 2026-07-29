@@ -926,10 +926,21 @@ def comment_route(post_id):
     if not text:
         flash("Comment cannot be empty.", "error")
         return redirect(url_for("feed"))
+    # Check reply control permissions
+    post = database.get_post(post_id)
+    if not post:
+        abort(404)
+    # Post author can always comment on their own post
+    if post["user_id"] != user["id"]:
+        friendship = database.get_friendship(user["id"], post["user_id"])
+        is_friend = bool(friendship and friendship["status"] == "accepted")
+        is_mentioned = database.is_word_muted(post["user_id"], f"@{user['username']}")
+        if not database.can_reply(post_id, user["id"], is_friend, is_mentioned):
+            flash("Replies are not allowed for this post.", "error")
+            return redirect(url_for("feed"))
     try:
         database.add_comment(user["id"], post_id, text)
         # Real-time notification to post author
-        post = database.get_post(post_id)
         if post and post["user_id"] != user["id"]:
             _emit_notification(post["user_id"], "new_comment", {"post_id": post_id, "commenter_name": user["display_name"] or user["username"]})
     except ValueError as e:
@@ -1833,6 +1844,412 @@ def view_series(series_id):
         abort(404)
     posts = database.get_series_posts(series_id)
     return render_template("series.html", series=dict(series), posts=posts)
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0: Content Labels
+# ---------------------------------------------------------------------------
+
+@app.route("/settings/labels")
+@login_required
+def label_settings():
+    user = _current_user()
+    prefs = database.get_user_label_prefs(user["id"])
+    label_types = database.VALID_LABEL_TYPES
+    return render_template("label_settings.html", prefs=prefs, label_types=label_types)
+
+
+@app.route("/settings/labels", methods=["POST"])
+@login_required
+def label_settings_update():
+    user = _current_user()
+    for lt in database.VALID_LABEL_TYPES:
+        action = request.form.get(lt, "warn")
+        if action in ('show', 'warn', 'hide'):
+            database.set_user_label_pref(user["id"], lt, action)
+    flash("Content label preferences saved.", "success")
+    return redirect(url_for("label_settings"))
+
+
+@app.route("/post/<int:post_id>/label", methods=["POST"])
+@login_required
+def add_post_label_route(post_id):
+    label_type = request.form.get("label_type", "").strip()
+    post = database.get_post(post_id)
+    if not post:
+        abort(404)
+    try:
+        database.add_post_label(post_id, label_type)
+    except ValueError:
+        flash("Invalid label type.", "error")
+        return redirect(url_for("feed"))
+    flash("Label added.", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/settings/muted-words")
+@login_required
+def muted_words():
+    """Render the user's muted words management page."""
+    me = _current_user()
+    words = database.list_muted_words(me["id"])
+    return render_template("muted_words.html", words=words)
+
+
+@app.route("/settings/muted-words/add", methods=["POST"])
+@login_required
+def add_muted_word():
+    """Add a new muted word from the form."""
+    me = _current_user()
+    word = request.form.get("word", "").strip()
+    if not word:
+        flash("Word cannot be empty.", "error")
+        return redirect(url_for("muted_words"))
+    database.add_muted_word(me["id"], word)
+    flash(f"Muted word '{word}' added.", "success")
+    return redirect(url_for("muted_words"))
+
+
+@app.route("/settings/muted-words/<int:word_id>/remove", methods=["POST"])
+@login_required
+def remove_muted_word(word_id):
+    """Remove a muted word by its row id."""
+    me = _current_user()
+    conn = database.get_connection()
+    row = conn.execute(
+        "SELECT * FROM muted_words WHERE id = ? AND user_id = ?",
+        (word_id, me["id"]),
+    ).fetchone()
+    word = row["word"] if row else None
+    conn.close()
+    if not row:
+        flash("Muted word not found.", "error")
+        return redirect(url_for("muted_words"))
+    database.remove_muted_word(me["id"], row["word"])
+    flash(f"Muted word '{word}' removed.", "success")
+    return redirect(url_for("muted_words"))
+
+
+# ---------------------------------------------------------------------------
+# Static uploads serving
+# ---------------------------------------------------------------------------
+
+@app.route("/modlists")
+@login_required
+def mod_lists():
+    me = _current_user()
+    mod_lists_all = database.list_mod_lists(limit=50)
+    my_subs = {s["mod_list_id"] for s in database.get_subscribed_mod_lists(me["id"])}
+    return render_template("mod_lists.html", mod_lists=mod_lists_all, my_subs=my_subs)
+
+
+@app.route("/modlist/new", methods=["GET", "POST"])
+@login_required
+def new_mod_list():
+    user = _current_user()
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        description = request.form.get("description", "").strip()
+        list_type = request.form.get("list_type", "block")
+        if list_type not in ("block", "mute"):
+            list_type = "block"
+        if not name:
+            flash("Name is required.", "error")
+            return redirect(url_for("new_mod_list"))
+        lid = database.create_mod_list(user["id"], name, description, list_type)
+        flash("Moderation list created!", "success")
+        return redirect(url_for("mod_list_detail", list_id=lid))
+    return render_template("new_mod_list.html")
+
+
+@app.route("/modlist/<int:list_id>")
+@login_required
+def mod_list_detail(list_id):
+    mod_list = database.get_mod_list(list_id)
+    if not mod_list:
+        abort(404)
+    members = database.get_mod_list_members(list_id)
+    me = _current_user()
+    my_subs = {s["mod_list_id"] for s in database.get_subscribed_mod_lists(me["id"])}
+    return render_template("mod_list_detail.html", mod_list=mod_list, members=members, my_subs=my_subs)
+
+
+@app.route("/modlist/<int:list_id>/add", methods=["POST"])
+@login_required
+def mod_list_add_member(list_id):
+    mod_list = database.get_mod_list(list_id)
+    if not mod_list:
+        abort(404)
+    target_user_id = request.form.get("target_user_id", "").strip()
+    if not target_user_id:
+        flash("User ID is required.", "error")
+        return redirect(url_for("mod_list_detail", list_id=list_id))
+    try:
+        target_user_id = int(target_user_id)
+    except (TypeError, ValueError):
+        flash("Invalid user ID.", "error")
+        return redirect(url_for("mod_list_detail", list_id=list_id))
+    target = database.get_user(target_user_id)
+    if not target:
+        flash("User not found.", "error")
+        return redirect(url_for("mod_list_detail", list_id=list_id))
+    try:
+        database.add_to_mod_list(list_id, target_user_id)
+        flash(f"Added {target['username']} to list.", "success")
+    except Exception:
+        flash("User is already on this list.", "error")
+    return redirect(url_for("mod_list_detail", list_id=list_id))
+
+
+@app.route("/modlist/<int:list_id>/remove", methods=["POST"])
+@login_required
+def mod_list_remove_member(list_id):
+    mod_list = database.get_mod_list(list_id)
+    if not mod_list:
+        abort(404)
+    target_user_id = request.form.get("target_user_id", "").strip()
+    try:
+        target_user_id = int(target_user_id)
+    except (TypeError, ValueError):
+        flash("Invalid user ID.", "error")
+        return redirect(url_for("mod_list_detail", list_id=list_id))
+    database.remove_from_mod_list(list_id, target_user_id)
+    flash("Removed from list.", "success")
+    return redirect(url_for("mod_list_detail", list_id=list_id))
+
+
+@app.route("/modlist/<int:list_id>/subscribe", methods=["POST"])
+@login_required
+def mod_list_subscribe(list_id):
+    me = _current_user()
+    mod_list = database.get_mod_list(list_id)
+    if not mod_list:
+        abort(404)
+    try:
+        database.subscribe_mod_list(me["id"], list_id)
+        flash("Subscribed to list.", "success")
+    except Exception:
+        flash("Already subscribed.", "error")
+    return redirect(url_for("mod_lists"))
+
+
+@app.route("/modlist/<int:list_id>/unsubscribe", methods=["POST"])
+@login_required
+def mod_list_unsubscribe(list_id):
+    me = _current_user()
+    mod_list = database.get_mod_list(list_id)
+    if not mod_list:
+        abort(404)
+    database.unsubscribe_mod_list(me["id"], list_id)
+    flash("Unsubscribed from list.", "success")
+    return redirect(url_for("mod_lists"))
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0: Custom Feeds
+# ---------------------------------------------------------------------------
+
+@app.route("/custom-feeds")
+@login_required
+def custom_feeds():
+    me = _current_user()
+    feeds = database.list_custom_feeds(me["id"])
+    return render_template("custom_feeds.html", feeds=feeds)
+
+
+@app.route("/custom-feed/new", methods=["GET", "POST"])
+@login_required
+def new_custom_feed():
+    me = _current_user()
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        filter_type = request.form.get("filter_type", "hashtag").strip()
+        filter_value = request.form.get("filter_value", "").strip()
+        if not name or not filter_value:
+            flash("Name and filter value are required.", "danger")
+            return redirect(url_for("new_custom_feed"))
+        if filter_type not in database.VALID_FILTER_TYPES:
+            flash("Invalid filter type.", "danger")
+            return redirect(url_for("new_custom_feed"))
+        feed_id = database.create_custom_feed(me["id"], name, filter_type, filter_value)
+        flash("Custom feed created!", "success")
+        return redirect(url_for("custom_feed_detail", feed_id=feed_id))
+    return render_template("custom_feeds.html", feeds=database.list_custom_feeds(me["id"]), creating=True)
+
+
+@app.route("/custom-feed/<int:feed_id>")
+@login_required
+def custom_feed_detail(feed_id):
+    feed = database.get_custom_feed(feed_id)
+    if not feed:
+        abort(404)
+    posts = database.get_custom_feed_posts(feed_id)
+    return render_template("custom_feed_detail.html", feed=feed, posts=posts)
+
+
+@app.route("/custom-feed/<int:feed_id>/delete", methods=["POST"])
+@login_required
+def delete_custom_feed(feed_id):
+    me = _current_user()
+    removed = database.delete_custom_feed(feed_id, me["id"])
+    if removed:
+        flash("Custom feed deleted.", "success")
+    else:
+        flash("Feed not found.", "error")
+    return redirect(url_for("custom_feeds"))
+
+
+@app.route("/custom-feed/<int:feed_id>/pin", methods=["POST"])
+@login_required
+def pin_custom_feed(feed_id):
+    me = _current_user()
+    pinned = database.toggle_pin_custom_feed(feed_id, me["id"])
+    flash("Feed pinned!" if pinned else "Feed unpinned.", "success")
+    return redirect(url_for("custom_feeds"))
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0: Reply Controls
+# ---------------------------------------------------------------------------
+
+@app.route("/post/<int:post_id>/reply-control", methods=["POST"])
+@login_required
+def set_reply_control_route(post_id):
+    user = _current_user()
+    post = database.get_post(post_id)
+    if not post:
+        abort(404)
+    if post["user_id"] != user["id"]:
+        flash("You can only change reply settings on your own posts.", "error")
+        return redirect(url_for("feed"))
+    reply_scope = request.form.get("reply_scope", "friends").strip()
+    if reply_scope not in ("everyone", "friends", "mentioned", "nobody"):
+        flash("Invalid reply scope.", "error")
+        return redirect(url_for("feed"))
+    database.set_reply_control(post_id, reply_scope)
+    flash("Reply settings updated.", "success")
+    return redirect(url_for("feed"))
+
+
+# ---------------------------------------------------------------------------
+# Mute Accounts (private — muted users are not notified)
+# ---------------------------------------------------------------------------
+
+@app.route("/user/<int:user_id>/mute", methods=["POST"])
+@login_required
+def mute_user_route(user_id):
+    me = _current_user()
+    target = database.get_user(user_id)
+    if not target:
+        abort(404)
+    if user_id == me["id"]:
+        flash("You cannot mute yourself.", "error")
+        return redirect(request.referrer or url_for("feed"))
+    database.mute_user(me["id"], user_id)
+    flash(f"You muted {target['display_name'] or target['username']}.", "success")
+    return redirect(request.referrer or url_for("feed"))
+
+
+@app.route("/user/<int:user_id>/unmute", methods=["POST"])
+@login_required
+def unmute_user_route(user_id):
+    me = _current_user()
+    target = database.get_user(user_id)
+    if not target:
+        abort(404)
+    database.unmute_user(me["id"], user_id)
+    flash(f"You unmuted {target['display_name'] or target['username']}.", "success")
+    return redirect(request.referrer or url_for("feed"))
+
+
+@app.route("/settings/muted")
+@login_required
+def muted_accounts():
+    me = _current_user()
+    muted = database.list_muted(me["id"])
+    return render_template("muted_accounts.html", muted=muted)
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0: Starter Packs
+# ---------------------------------------------------------------------------
+
+@app.route("/packs")
+@login_required
+def starter_packs():
+    packs = database.list_starter_packs()
+    return render_template("starter_packs.html", packs=packs)
+
+
+@app.route("/pack/new", methods=["GET", "POST"])
+@login_required
+def new_starter_pack():
+    user = _current_user()
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        description = request.form.get("description", "").strip()
+        if not name:
+            flash("Pack name is required.", "error")
+            return render_template("starter_pack_new.html"), 400
+        pid = database.create_starter_pack(user["id"], name, description)
+        flash("Starter pack created!", "success")
+        return redirect(url_for("starter_pack_detail", pack_id=pid))
+    return render_template("starter_pack_new.html")
+
+
+@app.route("/pack/<int:pack_id>")
+@login_required
+def starter_pack_detail(pack_id):
+    pack = database.get_starter_pack(pack_id)
+    if not pack:
+        abort(404)
+    members = database.get_starter_pack_members(pack_id)
+    return render_template("starter_pack_detail.html", pack=pack, members=members)
+
+
+@app.route("/pack/<int:pack_id>/add", methods=["POST"])
+@login_required
+def add_pack_member(pack_id):
+    pack = database.get_starter_pack(pack_id)
+    if not pack:
+        abort(404)
+    user_id = request.form.get("user_id", "").strip()
+    if not user_id:
+        flash("User ID is required.", "error")
+        return redirect(url_for("starter_pack_detail", pack_id=pack_id))
+    try:
+        database.add_to_starter_pack(pack_id, int(user_id))
+        flash("Member added to pack.", "success")
+    except Exception:
+        flash("Could not add member (already in pack?).", "error")
+    return redirect(url_for("starter_pack_detail", pack_id=pack_id))
+
+
+@app.route("/pack/<int:pack_id>/remove", methods=["POST"])
+@login_required
+def remove_pack_member(pack_id):
+    user_id = request.form.get("user_id", "").strip()
+    if not user_id:
+        flash("User ID is required.", "error")
+        return redirect(url_for("starter_pack_detail", pack_id=pack_id))
+    database.remove_from_starter_pack(pack_id, int(user_id))
+    flash("Member removed from pack.", "info")
+    return redirect(url_for("starter_pack_detail", pack_id=pack_id))
+
+
+@app.route("/pack/<int:pack_id>/follow-all", methods=["POST"])
+@login_required
+def follow_all_pack_members(pack_id):
+    me = _current_user()
+    pack = database.get_starter_pack(pack_id)
+    if not pack:
+        abort(404)
+    count = database.follow_all_in_pack(me["id"], pack_id)
+    if count:
+        flash(f"Sent {count} friend request(s) to pack members.", "success")
+    else:
+        flash("No new friend requests to send (all already friends or pending).", "info")
+    return redirect(url_for("starter_pack_detail", pack_id=pack_id))
 
 
 # ---------------------------------------------------------------------------

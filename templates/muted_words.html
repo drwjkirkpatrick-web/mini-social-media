@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Muted Words — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Muted Words</h2>
+  <p class="meta">Words you mute will be filtered from your feed. Matching is case-insensitive and matches anywhere in a post's text.</p>
+</div>
+
+<div class="card">
+  <h3>Add a Muted Word</h3>
+  <form method="POST" action="{{ url_for('add_muted_word') }}">
+    <div class="form-group">
+      <label for="word">Word</label>
+      <input type="text" id="word" name="word" placeholder="e.g. spoilers" maxlength="100" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Muted Word</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Your Muted Words</h3>
+  {% for w in words %}
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid var(--border);">
+    <span>{{ w.word }}</span>
+    <form method="POST" action="{{ url_for('remove_muted_word', word_id=w.id) }}">
+      <button type="submit" class="btn btn-danger btn-small">Remove</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="meta">You have no muted words yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}
