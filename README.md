@@ -112,6 +112,15 @@ discovery. Because the future is coming — and your data should be ready.
   mentioned only, or nobody. Default is `friends`, consistent with the
   friends-only philosophy.
 
+### Accuracy & Efficiency (v0.7.0)
+- **Feed N+1 Elimination** — `get_feed()` now computes like counts, comment
+  counts, and reaction tallies in two SQL queries instead of 3N+2. 50 posts
+  are served with ≤ 3 total DB statements. Faster feed, happier Jetson.
+- **Prompt Roadmap** — `PROMPTS_v7.md` contains 30 testable accuracy and
+  efficiency improvements covering correctness (approval gating, idempotent
+  likes, timezone handling, webhook HMAC) and performance (indexes, connection
+  reuse, batch inserts, query-count ceilings).
+
 ### Visual Themes & Professional Polish (v0.8.0)
 - **6 Color Palettes** — Slate (default), Midnight, Ocean, Forest, Sunset,
   Lavender. Each defines `bg-primary`, `bg-secondary`, `bg-card`, `text-primary`,
@@ -167,15 +176,6 @@ discovery. Because the future is coming — and your data should be ready.
   same `location_general`.
 - **Pseudo-Weather Badge** — Deterministic weather based on location hash +
   day-of-year (Sunny/Cloudy/Rainy/Snowy + temperature range). No external API.
-
-### Accuracy & Efficiency (v0.7.0)
-- **Feed N+1 Elimination** — `get_feed()` now computes like counts, comment
-  counts, and reaction tallies in two SQL queries instead of 3N+2. 50 posts
-  are served with ≤ 3 total DB statements. Faster feed, happier Jetson.
-- **Prompt Roadmap** — `PROMPTS_v7.md` contains 30 testable accuracy and
-  efficiency improvements covering correctness (approval gating, idempotent
-  likes, timezone handling, webhook HMAC) and performance (indexes, connection
-  reuse, batch inserts, query-count ceilings).
 
 ---
 
