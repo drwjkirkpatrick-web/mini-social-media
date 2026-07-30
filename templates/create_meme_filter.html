@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}New Meme Filter — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>🔧 Create Filter</h1>
+  <form method="POST" action="{{ url_for('create_meme_filter_route') }}">
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" name="name" required placeholder="My Awesome Filter">
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" name="description" placeholder="Short description...">
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:1rem;">
+      <div class="form-group">
+        <label>Brightness</label>
+        <input type="text" name="brightness" value="1.0" placeholder="1.0">
+      </div>
+      <div class="form-group">
+        <label>Contrast</label>
+        <input type="text" name="contrast" value="1.0" placeholder="1.0">
+      </div>
+      <div class="form-group">
+        <label>Saturate</label>
+        <input type="text" name="saturate" value="1.0" placeholder="1.0">
+      </div>
+      <div class="form-group">
+        <label>Hue Rotate</label>
+        <input type="text" name="hue_rotate" value="0deg" placeholder="0deg">
+      </div>
+      <div class="form-group">
+        <label>Blur</label>
+        <input type="text" name="blur" value="0px" placeholder="0px">
+      </div>
+      <div class="form-group">
+        <label>Grayscale</label>
+        <input type="text" name="grayscale" value="0" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label>Sepia</label>
+        <input type="text" name="sepia" value="0" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label>Invert</label>
+        <input type="text" name="invert" value="0" placeholder="0">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Filter</button>
+    <a href="{{ url_for('memes') }}" class="btn">Cancel</a>
+  </form>
+</div>
+{% endblock %}

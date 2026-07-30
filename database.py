@@ -337,6 +337,14 @@ def init_database():
         ("birthday_month", "ALTER TABLE users ADD COLUMN birthday_month INTEGER"),
         ("birthday_day", "ALTER TABLE users ADD COLUMN birthday_day INTEGER"),
         ("mood", "ALTER TABLE users ADD COLUMN mood TEXT"),
+        ("location_lat", "ALTER TABLE users ADD COLUMN location_lat REAL"),
+        ("location_lng", "ALTER TABLE users ADD COLUMN location_lng REAL"),
+        ("location_general", "ALTER TABLE users ADD COLUMN location_general TEXT"),
+        ("location_precision", "ALTER TABLE users ADD COLUMN location_precision TEXT DEFAULT 'hidden'"),
+        ("selfie_url", "ALTER TABLE users ADD COLUMN selfie_url TEXT"),
+        ("pattern", "ALTER TABLE users ADD COLUMN pattern TEXT DEFAULT 'none'"),
+        ("high_contrast", "ALTER TABLE users ADD COLUMN high_contrast INTEGER DEFAULT 0"),
+        ("font_size", "ALTER TABLE users ADD COLUMN font_size INTEGER DEFAULT 16"),
     ]:
         if col not in existing:
             cursor.execute(ddl)
@@ -359,9 +367,41 @@ def init_database():
         ("template_data", "ALTER TABLE posts ADD COLUMN template_data TEXT"),
         ("expires_at", "ALTER TABLE posts ADD COLUMN expires_at TEXT"),
         ("view_count", "ALTER TABLE posts ADD COLUMN view_count INTEGER DEFAULT 0"),
+        ("is_local_news", "ALTER TABLE posts ADD COLUMN is_local_news INTEGER DEFAULT 0"),
+        ("filter_id", "ALTER TABLE posts ADD COLUMN filter_id INTEGER"),
     ]:
         if col not in existing_posts:
             cursor.execute(ddl)
+
+    # v0.8.0: Meme Filters
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_filters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            css_filters TEXT NOT NULL DEFAULT '{}',
+            overlay_svg TEXT,
+            created_by INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # Seed built-in meme filters if empty
+    mf_count = cursor.execute("SELECT COUNT(*) as c FROM meme_filters").fetchone()
+    if mf_count and mf_count["c"] == 0:
+        built_in = [
+            ("Vaporwave", "Retro neon aesthetic", '{"brightness":"1.2","contrast":"1.1","saturate":"1.5","hue-rotate":"180deg","sepia":"0.2"}', '', 0),
+            ("Deep Fry", "High contrast crunchy look", '{"brightness":"1.4","contrast":"2.0","saturate":"2.0"}', '', 0),
+            ("Black & White", "Classic monochrome", '{"grayscale":"1"}', '', 0),
+            ("Sepia Vintage", "Old photo warmth", '{"sepia":"0.8","contrast":"0.9","brightness":"1.1"}', '', 0),
+            ("Neon Glow", "Electric edge glow", '{"brightness":"1.2","contrast":"1.3","saturate":"2.0"}', '<svg xmlns="http://www.w3.org/2000/svg"><filter id="neon"><feGaussianBlur stdDeviation="3"/></filter></svg>', 0),
+            ("Pixelate", "Low-res retro", '{"contrast":"1.2"}', '', 0),
+            ("Blur Background", "Dreamy softness", '{"blur":"4px","brightness":"1.1"}', '', 0),
+            ("Comic Book", "Bold halftone pop", '{"contrast":"1.5","saturate":"1.3"}', '', 0),
+        ]
+        cursor.executemany(
+            "INSERT INTO meme_filters (name, description, css_filters, overlay_svg, created_by) VALUES (?, ?, ?, ?, ?)",
+            built_in
+        )
 
     # v0.4.0: Stories
     cursor.execute("""
@@ -791,7 +831,7 @@ def get_user(user_id: int) -> Optional[Dict[str, Any]]:
 
 def update_user(user_id: int, **fields) -> bool:
     """Update user with column whitelist. Only these fields may be changed."""
-    allowed = {"display_name", "bio", "avatar_url", "cover_url", "pronouns", "location"}
+    allowed = {"display_name", "bio", "avatar_url", "cover_url", "pronouns", "location", "location_lat", "location_lng", "location_general", "location_precision", "selfie_url", "theme", "pattern", "high_contrast", "font_size"}
     safe = {k: v for k, v in fields.items() if k in allowed}
     if not safe:
         return False
@@ -2942,3 +2982,244 @@ def follow_all_in_pack(follower_id: int, pack_id: int) -> int:
         )
         count += 1
     return count
+
+
+# ---------------------------------------------------------------------------
+# Meme Filters (v0.8.0)
+# ---------------------------------------------------------------------------
+
+def create_meme_filter(name: str, description: str, css_filters: str, overlay_svg: str, created_by: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO meme_filters (name, description, css_filters, overlay_svg, created_by) VALUES (?, ?, ?, ?, ?)",
+        (name, description, css_filters, overlay_svg, created_by),
+    )
+    fid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return fid
+
+
+def get_meme_filter(filter_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM meme_filters WHERE id = ?", (filter_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_meme_filters() -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM meme_filters ORDER BY id").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def list_user_meme_filters(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM meme_filters WHERE created_by = ? ORDER BY created_at DESC",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Meme Posts (v0.8.0)
+# ---------------------------------------------------------------------------
+
+def create_meme_post(user_id: int, photo_url: str, filter_id: int, text_content: str = None) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO posts (user_id, content_type, photo_url, filter_id, text_content, visibility) VALUES (?, 'meme', ?, ?, ?, 'friends')",
+        (user_id, photo_url, filter_id, text_content),
+    )
+    pid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return pid
+
+
+def get_meme_posts_by_friends(user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+    """Return meme posts from accepted friends, ordered newest first."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT p.*, u.username, u.display_name, u.avatar_url,
+                  mf.name as filter_name, mf.css_filters
+           FROM posts p
+           JOIN users u ON u.id = p.user_id
+           LEFT JOIN meme_filters mf ON mf.id = p.filter_id
+           WHERE p.content_type = 'meme'
+             AND p.user_id IN (
+                 SELECT requester_id FROM friendships WHERE addressee_id = ? AND status = 'accepted'
+                 UNION
+                 SELECT addressee_id FROM friendships WHERE requester_id = ? AND status = 'accepted'
+             )
+           ORDER BY p.created_at DESC
+           LIMIT ?""",
+        (user_id, user_id, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Local News / Fun (v0.8.0)
+# ---------------------------------------------------------------------------
+
+def get_local_news_posts(viewer_id: int, location_general: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """Return local-news posts from friends+fof in same general location."""
+    conn = get_connection()
+    # Friends and friends-of-friends whose location_general matches (case-insensitive)
+    rows = conn.execute(
+        """SELECT p.*, u.username, u.display_name, u.avatar_url
+           FROM posts p
+           JOIN users u ON u.id = p.user_id
+           WHERE p.is_local_news = 1
+             AND p.moderation_status = 'approved'
+             AND (
+                 -- direct friends
+                 p.user_id IN (
+                     SELECT requester_id FROM friendships WHERE addressee_id = ? AND status = 'accepted'
+                     UNION
+                     SELECT addressee_id FROM friendships WHERE requester_id = ? AND status = 'accepted'
+                 )
+                 -- or friends-of-friends with matching location
+                 OR (
+                     p.user_id IN (
+                         SELECT f1.requester_id FROM friendships f1
+                         JOIN friendships f2 ON (
+                             (f2.requester_id = f1.addressee_id OR f2.addressee_id = f1.addressee_id)
+                             AND f2.status = 'accepted'
+                         )
+                         WHERE f1.status = 'accepted' AND (f1.requester_id = ? OR f1.addressee_id = ?)
+                     )
+                     AND LOWER(u.location_general) = LOWER(?)
+                 )
+             )
+           ORDER BY p.created_at DESC
+           LIMIT ?""",
+        (viewer_id, viewer_id, viewer_id, viewer_id, location_general, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_local_fun_posts(location_general: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """Return posts tagged #localfun or #thingstodo."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT DISTINCT p.*, u.username, u.display_name, u.avatar_url
+           FROM posts p
+           JOIN users u ON u.id = p.user_id
+           JOIN post_hashtags ph ON ph.post_id = p.id
+           JOIN hashtags h ON h.id = ph.hashtag_id
+           WHERE p.moderation_status = 'approved'
+             AND (LOWER(h.tag) IN ('localfun','thingstodo'))
+             AND (u.location_general IS NOT NULL)
+           ORDER BY p.created_at DESC
+           LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Location-based friends (v0.8.0)
+# ---------------------------------------------------------------------------
+
+def list_friends_by_location(user_id: int, location_general: str) -> List[Dict[str, Any]]:
+    """Return accepted friends who share the same general location."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT u.id, u.username, u.display_name, u.avatar_url, u.location_general
+           FROM friendships f
+           JOIN users u ON (
+               (u.id = f.requester_id AND f.addressee_id = ?)
+               OR (u.id = f.addressee_id AND f.requester_id = ?)
+           )
+           WHERE f.status = 'accepted'
+             AND LOWER(u.location_general) = LOWER(?)
+             AND u.id != ?""",
+        (user_id, user_id, location_general, user_id),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def count_friends_nearby(user_id: int, location_general: str) -> int:
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT COUNT(*) AS c
+           FROM friendships f
+           JOIN users u ON (
+               (u.id = f.requester_id AND f.addressee_id = ?)
+               OR (u.id = f.addressee_id AND f.requester_id = ?)
+           )
+           WHERE f.status = 'accepted'
+             AND LOWER(u.location_general) = LOWER(?)
+             AND u.id != ?""",
+        (user_id, user_id, location_general, user_id),
+    ).fetchone()
+    conn.close()
+    return row["c"] if row else 0
+
+
+# ---------------------------------------------------------------------------
+# Local events fuzzy match (v0.8.0)
+# ---------------------------------------------------------------------------
+
+def list_events_by_location(location_general: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """Return events whose location text contains the user's location_general word(s)."""
+    conn = get_connection()
+    # Simple fuzzy: any word in location_general appears in event.location
+    words = [w.strip() for w in location_general.replace(",", " ").split() if len(w.strip()) > 2]
+    if not words:
+        conn.close()
+        return []
+    clauses = " OR ".join(["LOWER(e.location) LIKE ?"] * len(words))
+    params = [f"%{w.lower()}%" for w in words] + [limit]
+    rows = conn.execute(
+        f"""SELECT e.*, u.username, u.display_name,
+                  (SELECT COUNT(*) FROM event_rsvps er WHERE er.event_id = e.id) AS rsvp_count
+           FROM events e
+           JOIN users u ON u.id = e.user_id
+           WHERE ({clauses})
+           ORDER BY e.start_time ASC
+           LIMIT ?""",
+        params,
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Deterministic pseudo-weather (v0.8.0)
+# ---------------------------------------------------------------------------
+import hashlib
+
+def get_local_weather(location_general: str, date_str: str = None) -> dict:
+    """Return deterministic pseudo-weather based on location hash + day-of-year.
+    No external API calls — purely local computation.
+    """
+    if date_str is None:
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day_of_year = datetime.strptime(date_str, "%Y-%m-%d").timetuple().tm_yday
+    h = hashlib.md5(f"{location_general.lower().strip()}:{date_str}".encode()).hexdigest()
+    conditions = ["Sunny", "Partly Cloudy", "Cloudy", "Light Rain", "Rainy", "Snowy", "Clear"]
+    condition = conditions[int(h[:2], 16) % len(conditions)]
+    # Temperature range: 45-85 F with seasonal swing
+    base_temp = 55 + (int(h[2:4], 16) % 30)
+    seasonal_offset = int(10 * (1 if day_of_year < 60 or day_of_year > 300 else -1) * (abs(day_of_year - 180) / 180))
+    low = base_temp + seasonal_offset - 5
+    high = base_temp + seasonal_offset + 8
+    return {
+        "condition": condition,
+        "low": low,
+        "high": high,
+        "location": location_general,
+        "date": date_str,
+    }

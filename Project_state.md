@@ -27,6 +27,7 @@ integration, and Bluesky-inspired moderation & discovery tools.
 - [x] v0.6.0: Bluesky-inspired — custom feeds, content labels, moderation lists,
   mute accounts, muted words, starter packs, reply controls — 250 tests
 - [x] v0.7.0-prep: Feed N+1 elimination + 30 accuracy/efficiency prompts — 252 tests
+- [x] v0.8.0: Visual themes, meme engine, location awareness, local hub — 284 tests
 - [x] GitHub repo created and pushed
 
 ### In Progress

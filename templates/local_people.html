@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Connect Locally — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>👥 Friends Near {{ location or 'You' }}</h1>
+  <p class="meta">People you know in your general area.</p>
+  <a href="{{ url_for('local_hub') }}" class="btn btn-small">← Back to Local</a>
+</div>
+{% if people %}
+  <div class="grid-3">
+  {% for p in people %}
+    <a href="{{ url_for('user_profile', user_id=p.id) }}" class="card" style="text-decoration:none;text-align:center;">
+      <img src="{{ p.avatar_url or '/static/default-avatar.png' }}" class="avatar avatar-lg" style="margin:0 auto;display:block;">
+      <div style="margin-top:0.5rem;"><strong>{{ p.display_name or p.username }}</strong></div>
+      <div class="meta">{{ p.location_general }}</div>
+    </a>
+  {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    <p>No nearby friends yet. Invite people in your area!</p>
+    <a href="{{ url_for('discover') }}" class="btn btn-primary">Discover People</a>
+  </div>
+{% endif %}
+{% endblock %}

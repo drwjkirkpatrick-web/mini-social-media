@@ -4,18 +4,48 @@
 <div class="card"><h2>Settings</h2></div>
 
 <div class="card">
-  <h3>Theme</h3>
+  <h3>🎨 Visual Theme</h3>
   <form method="POST" action="{{ url_for('save_theme') }}">
     <div class="form-group">
-      <label>Mode</label>
+      <label>Palette</label>
       <select name="theme">
-        <option value="light" {% if user.theme == 'light' %}selected{% endif %}%>Light</option>
-        <option value="dark" {% if user.theme == 'dark' %}selected{% endif %}%>Dark</option>
+        <option value="slate" {% if user.theme == 'slate' %}selected{% endif %}%>Slate (default)</option>
+        <option value="midnight" {% if user.theme == 'midnight' %}selected{% endif %}%>Midnight</option>
+        <option value="ocean" {% if user.theme == 'ocean' %}selected{% endif %}%>Ocean</option>
+        <option value="forest" {% if user.theme == 'forest' %}selected{% endif %}%>Forest</option>
+        <option value="sunset" {% if user.theme == 'sunset' %}selected{% endif %}%>Sunset</option>
+        <option value="lavender" {% if user.theme == 'lavender' %}selected{% endif %}%>Lavender</option>
+        <option value="light" {% if user.theme == 'light' %}selected{% endif %}%>Light (legacy)</option>
+        <option value="dark" {% if user.theme == 'dark' %}selected{% endif %}%>Dark (legacy)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Background Pattern</label>
+      <select name="pattern">
+        <option value="none" {% if user.pattern == 'none' %}selected{% endif %}%>None</option>
+        <option value="dots" {% if user.pattern == 'dots' %}selected{% endif %}%>Dots</option>
+        <option value="grid" {% if user.pattern == 'grid' %}selected{% endif %}%>Grid</option>
+        <option value="stripes" {% if user.pattern == 'stripes' %}selected{% endif %}%>Stripes</option>
+        <option value="waves" {% if user.pattern == 'waves' %}selected{% endif %}%>Waves</option>
+        <option value="hexagons" {% if user.pattern == 'hexagons' %}selected{% endif %}%>Hexagons</option>
+        <option value="confetti" {% if user.pattern == 'confetti' %}selected{% endif %}%>Confetti</option>
+        <option value="stars" {% if user.pattern == 'stars' %}selected{% endif %}%>Stars</option>
+        <option value="noise" {% if user.pattern == 'noise' %}selected{% endif %}%>Noise</option>
       </select>
     </div>
     <div class="form-group">
       <label for="accent_color">Accent Color</label>
       <input type="color" id="accent_color" name="accent_color" value="{{ user.accent_color or '#4a90d9' }}">
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" name="high_contrast" {% if user.high_contrast %}checked{% endif %}%>
+        High Contrast Mode
+      </label>
+    </div>
+    <div class="form-group">
+      <label for="font_size">Font Size (px)</label>
+      <input type="number" id="font_size" name="font_size" value="{{ user.font_size or 16 }}" min="12" max="24">
     </div>
     <button type="submit" class="btn btn-primary">Save Theme</button>
   </form>

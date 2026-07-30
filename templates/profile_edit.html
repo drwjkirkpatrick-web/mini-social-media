@@ -13,8 +13,25 @@
       <input type="text" id="pronouns" name="pronouns" value="{{ user.pronouns or '' }}" placeholder="e.g., they/them">
     </div>
     <div class="form-group">
-      <label for="location">Location</label>
-      <input type="text" id="location" name="location" value="{{ user.location or '' }}">
+      <label for="location">General Location</label>
+      <input type="text" id="location_general" name="location_general" value="{{ user.location_general or '' }}" placeholder="e.g. Portland, OR">
+      <p class="meta">This is shown on your profile and used for local features.</p>
+    </div>
+    <div class="form-group">
+      <label for="location_precision">Location Sharing</label>
+      <select id="location_precision" name="location_precision">
+        <option value="hidden" {% if user.location_precision == 'hidden' %}selected{% endif %}%>Hidden — don't share my location</option>
+        <option value="general" {% if user.location_precision == 'general' %}selected{% endif %}%>General — city/state only</option>
+        <option value="precise" {% if user.location_precision == 'precise' %}selected{% endif %}%>Precise — allow precise coordinates</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="location_lat">Latitude (optional, for precise)</label>
+      <input type="number" step="any" id="location_lat" name="location_lat" value="{{ user.location_lat or '' }}">
+    </div>
+    <div class="form-group">
+      <label for="location_lng">Longitude (optional, for precise)</label>
+      <input type="number" step="any" id="location_lng" name="location_lng" value="{{ user.location_lng or '' }}">
     </div>
     <div class="form-group">
       <label for="bio">Bio</label>
@@ -22,11 +39,30 @@
     </div>
     <div class="form-group">
       <label for="avatar">Avatar Photo</label>
-      <input type="file" id="avatar" name="avatar" accept="image/*">
+      <input type="file" id="avatar" name="avatar" accept="image/*" data-preview="avatarPreview">
+      {% if user.avatar_url %}
+        <img id="avatarPreview" src="{{ user.avatar_url }}" style="max-width:120px;margin-top:0.5rem;border-radius:50%;">
+      {% else %}
+        <img id="avatarPreview" style="display:none;max-width:120px;margin-top:0.5rem;border-radius:50%;">
+      {% endif %}
     </div>
     <div class="form-group">
       <label for="cover">Cover Photo</label>
-      <input type="file" id="cover" name="cover" accept="image/*">
+      <input type="file" id="cover" name="cover" accept="image/*" data-preview="coverPreview">
+      {% if user.cover_url %}
+        <img id="coverPreview" src="{{ user.cover_url }}" style="max-width:100%;margin-top:0.5rem;border-radius:0.375rem;">
+      {% else %}
+        <img id="coverPreview" style="display:none;max-width:100%;margin-top:0.5rem;border-radius:0.375rem;">
+      {% endif %}
+    </div>
+    <div class="form-group">
+      <label for="selfie">Selfie (for memes)</label>
+      <input type="file" id="selfie" name="selfie" accept="image/*" data-preview="selfiePreview">
+      {% if user.selfie_url %}
+        <img id="selfiePreview" src="{{ user.selfie_url }}" style="max-width:120px;margin-top:0.5rem;border-radius:0.375rem;">
+      {% else %}
+        <img id="selfiePreview" style="display:none;max-width:120px;margin-top:0.5rem;border-radius:0.375rem;">
+      {% endif %}
     </div>
     <div class="form-group">
       <label for="birthday_month">Birthday Month (1-12)</label>

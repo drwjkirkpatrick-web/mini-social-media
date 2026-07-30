@@ -52,10 +52,19 @@ def _current_user() -> dict:
 @app.context_processor
 def inject_globals():
     cfg = get_config()
+    user = _current_user()
+    theme = user.get("theme") if user else None
+    pattern = user.get("pattern") if user else None
+    high_contrast = bool(user.get("high_contrast")) if user else False
+    font_size = user.get("font_size", 16) if user else 16
     return {
-        "current_user": _current_user(),
+        "current_user": user,
         "site_logo_url": cfg.site_logo_url,
         "site_motto": cfg.site_motto,
+        "user_theme": theme or "slate",
+        "user_pattern": pattern or "none",
+        "user_high_contrast": high_contrast,
+        "user_font_size": font_size,
     }
 
 
@@ -400,10 +409,16 @@ def reset_password(token):
 @login_required
 def save_theme():
     user = _current_user()
-    theme = request.form.get("theme", "light")
+    theme = request.form.get("theme", "slate")
     accent = request.form.get("accent_color", "#4a90d9")
+    pattern = request.form.get("pattern", "none")
+    high_contrast = 1 if request.form.get("high_contrast") else 0
+    font_size = max(12, min(24, int(request.form.get("font_size", 16))))
     conn = database.get_connection()
-    conn.execute("UPDATE users SET theme=?, accent_color=? WHERE id=?", (theme, accent, user["id"]))
+    conn.execute(
+        "UPDATE users SET theme=?, accent_color=?, pattern=?, high_contrast=?, font_size=? WHERE id=?",
+        (theme, accent, pattern, high_contrast, font_size, user["id"]),
+    )
     conn.commit()
     conn.close()
     flash("Theme saved!", "success")
@@ -720,7 +735,7 @@ def profile_edit():
     user = _current_user()
     if request.method == "POST":
         updates = {}
-        for field in ["display_name", "bio", "pronouns", "location"]:
+        for field in ["display_name", "bio", "pronouns", "location", "location_general", "location_precision"]:
             val = request.form.get(field, "").strip()
             if val:
                 updates[field] = val
@@ -749,6 +764,24 @@ def profile_edit():
                     updates["cover_url"] = url
                 except ValueError as e:
                     flash(str(e), "error")
+        # Handle selfie upload
+        if "selfie" in request.files:
+            file = request.files["selfie"]
+            if file and file.filename and allowed_file(file.filename):
+                try:
+                    url = save_photo(file, user["id"])
+                    updates["selfie_url"] = url
+                except ValueError as e:
+                    flash(str(e), "error")
+        # Handle precise location
+        lat = request.form.get("location_lat", "").strip()
+        lng = request.form.get("location_lng", "").strip()
+        if lat and lng:
+            try:
+                updates["location_lat"] = float(lat)
+                updates["location_lng"] = float(lng)
+            except ValueError:
+                pass
         if updates:
             database.update_user(user["id"], **updates)
             flash("Profile updated.", "success")
@@ -2250,6 +2283,162 @@ def follow_all_pack_members(pack_id):
     else:
         flash("No new friend requests to send (all already friends or pending).", "info")
     return redirect(url_for("starter_pack_detail", pack_id=pack_id))
+
+
+# ---------------------------------------------------------------------------
+# v0.8.0: Meme Engine Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/memes")
+@login_required
+def memes():
+    user = _current_user()
+    meme_posts = database.get_meme_posts_by_friends(user["id"])
+    filters = database.list_meme_filters()
+    return render_template("memes.html", memes=meme_posts, filters=filters)
+
+
+@app.route("/meme/new", methods=["GET", "POST"])
+@login_required
+def create_meme():
+    user = _current_user()
+    if request.method == "POST":
+        photo_url = request.form.get("photo_url", "").strip()
+        filter_id = request.form.get("filter_id", type=int)
+        caption = request.form.get("caption", "").strip()
+        if not photo_url:
+            flash("Please select a photo.", "error")
+            return redirect(url_for("create_meme"))
+        post_id = database.create_meme_post(user["id"], photo_url, filter_id or 0, caption or None)
+        flash("Meme posted!", "success")
+        return redirect(url_for("feed"))
+    filters = database.list_meme_filters()
+    return render_template("create_meme.html", filters=filters)
+
+
+@app.route("/meme-filter/new", methods=["GET", "POST"])
+@login_required
+def create_meme_filter_route():
+    user = _current_user()
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        description = request.form.get("description", "").strip()
+        brightness = request.form.get("brightness", "1.0")
+        contrast = request.form.get("contrast", "1.0")
+        saturate = request.form.get("saturate", "1.0")
+        hue_rotate = request.form.get("hue_rotate", "0deg")
+        blur = request.form.get("blur", "0px")
+        grayscale = request.form.get("grayscale", "0")
+        sepia = request.form.get("sepia", "0")
+        invert = request.form.get("invert", "0")
+        css_filters = json.dumps({
+            "brightness": brightness, "contrast": contrast, "saturate": saturate,
+            "hue-rotate": hue_rotate, "blur": blur, "grayscale": grayscale,
+            "sepia": sepia, "invert": invert,
+        })
+        fid = database.create_meme_filter(name, description, css_filters, "", user["id"])
+        flash(f"Filter '{name}' created!", "success")
+        return redirect(url_for("memes"))
+    return render_template("create_meme_filter.html")
+
+
+# ---------------------------------------------------------------------------
+# v0.8.0: Selfie Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/selfie/upload", methods=["POST"])
+@login_required
+def upload_selfie():
+    user = _current_user()
+    if "selfie" in request.files:
+        file = request.files["selfie"]
+        if file and file.filename and allowed_file(file.filename):
+            try:
+                url = save_photo(file, user["id"])
+                database.update_user(user["id"], selfie_url=url)
+                flash("Selfie uploaded!", "success")
+            except ValueError as e:
+                flash(str(e), "error")
+        else:
+            flash("Invalid file.", "error")
+    else:
+        flash("No file provided.", "error")
+    return redirect(url_for("profile"))
+
+
+@app.route("/meme/selfie", methods=["POST"])
+@login_required
+def meme_selfie():
+    user = _current_user()
+    if not user.get("selfie_url"):
+        flash("Upload a selfie first!", "warning")
+        return redirect(url_for("profile"))
+    filter_id = request.form.get("filter_id", type=int)
+    caption = request.form.get("caption", "").strip()
+    post_id = database.create_meme_post(user["id"], user["selfie_url"], filter_id or 0, caption or None)
+    flash("Selfie meme posted!", "success")
+    return redirect(url_for("feed"))
+
+
+# ---------------------------------------------------------------------------
+# v0.8.0: Locality Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/local")
+@login_required
+def local_hub():
+    user = _current_user()
+    location = user.get("location_general", "")
+    weather = database.get_local_weather(location) if location else None
+    nearby_count = database.count_friends_nearby(user["id"], location) if location else 0
+    return render_template("local_hub.html", location=location, weather=weather, nearby_count=nearby_count)
+
+
+@app.route("/local/events")
+@login_required
+def local_events():
+    user = _current_user()
+    location = user.get("location_general", "")
+    events = database.list_events_by_location(location) if location else []
+    return render_template("local_events.html", events=events, location=location)
+
+
+@app.route("/local/news")
+@login_required
+def local_news():
+    user = _current_user()
+    location = user.get("location_general", "")
+    news = database.get_local_news_posts(user["id"], location) if location else []
+    return render_template("local_news.html", news=news, location=location)
+
+
+@app.route("/local/fun")
+@login_required
+def local_fun():
+    user = _current_user()
+    location = user.get("location_general", "")
+    fun_posts = database.get_local_fun_posts(location) if location else []
+    return render_template("local_fun.html", fun_posts=fun_posts, location=location)
+
+
+@app.route("/local/people")
+@login_required
+def local_people():
+    user = _current_user()
+    location = user.get("location_general", "")
+    people = database.list_friends_by_location(user["id"], location) if location else []
+    return render_template("local_people.html", people=people, location=location)
+
+
+@app.route("/local/weather")
+@login_required
+def local_weather_api():
+    user = _current_user()
+    location = user.get("location_general", "")
+    if not location:
+        return jsonify({"error": "No location set"}), 400
+    weather = database.get_local_weather(location)
+    return jsonify(weather)
 
 
 # ---------------------------------------------------------------------------

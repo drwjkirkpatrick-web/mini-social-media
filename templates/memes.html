@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Memes — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>🎨 Memes</h1>
+  <p class="meta">Creative filters applied by you and your friends.</p>
+  <div style="display:flex;gap:0.5rem;margin:1rem 0;">
+    <a href="{{ url_for('create_meme') }}" class="btn btn-primary">Create Meme</a>
+    <a href="{{ url_for('create_meme_filter_route') }}" class="btn">New Filter</a>
+    <form method="POST" action="{{ url_for('meme_selfie') }}" style="display:inline;">
+      <button type="submit" class="btn">Selfie Meme</button>
+    </form>
+  </div>
+</div>
+
+{% if memes %}
+  {% for post in memes %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+      <img src="{{ post.avatar_url or '/static/default-avatar.png' }}" class="avatar" alt="">
+      <div>
+        <strong>{{ post.display_name or post.username }}</strong>
+        <div class="meta">{{ post.created_at }}</div>
+      </div>
+    </div>
+    {% if post.text_content %}
+      <p>{{ post.text_content }}</p>
+    {% endif %}
+    <div class="meme-preview">
+      <img src="{{ post.photo_url }}" alt="Meme" style="filter:{{ post.css_filters_dict|default('') }};">
+    </div>
+    {% if post.filter_name %}
+      <div class="meta" style="margin-top:0.5rem;">Filter: {{ post.filter_name }}</div>
+    {% endif %}
+    <div style="margin-top:0.75rem;">
+      <a href="{{ url_for('share_post', post_id=post.id) }}" class="btn btn-small">Share</a>
+      <a href="{{ url_for('post_stats', post_id=post.id) }}" class="btn btn-small">Stats</a>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+    <p>No memes yet. Be the first to create one!</p>
+    <a href="{{ url_for('create_meme') }}" class="btn btn-primary">Create a Meme</a>
+  </div>
+{% endif %}
+{% endblock %}

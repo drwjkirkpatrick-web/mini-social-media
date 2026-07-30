@@ -11,10 +11,9 @@ checking in on friends, this is a place built for *real* community.
 
 Now containerized, real-time, installable on your phone, hardened against
 the quantum computing revolution, and packed with features that make photographers
-smile and friends stay connected. With v0.6.0, we've added Bluesky-inspired
-moderation and discovery tools — custom feeds, content labels, moderation lists,
-mute accounts, muted words, starter packs, and reply controls. Because the
-future is coming — and your data should be ready.
+smile and friends stay connected. With v0.8.0, the platform is visually stunning,
+creatively expressive with meme filters, and locally connected with location-aware
+discovery. Because the future is coming — and your data should be ready.
 
 ---
 
@@ -112,6 +111,62 @@ future is coming — and your data should be ready.
 - **Reply Controls** — Post authors choose who can reply: everyone, friends,
   mentioned only, or nobody. Default is `friends`, consistent with the
   friends-only philosophy.
+
+### Visual Themes & Professional Polish (v0.8.0)
+- **6 Color Palettes** — Slate (default), Midnight, Ocean, Forest, Sunset,
+  Lavender. Each defines `bg-primary`, `bg-secondary`, `bg-card`, `text-primary`,
+  `text-secondary`, and `accent` CSS custom properties.
+- **8 Background Patterns** — Dots, grid, stripes, waves, hexagons, confetti,
+  stars, noise. Composited at low opacity over the theme color.
+- **Per-User Theme Persistence** — Theme + pattern stored in DB and applied on
+  every page load via `inject_globals`.
+- **Auto Dark Mode** — Respects `prefers-color-scheme: dark` on first visit.
+- **High Contrast Mode** — Accessibility toggle in settings adds `.high-contrast`
+  to `<html>`, forcing visible borders and pure black/white.
+- **Font Size Toggle** — A+ / A- controls in footer adjust root font-size
+  (12–24px) with `localStorage` persistence.
+- **Glassmorphism Navbar** — Sticky position with `backdrop-filter: blur(12px)`.
+- **Card Hover Lift** — All cards lift on hover with `translateY(-4px)` and
+  enhanced shadow.
+- **Toast Notifications** — Auto-dismissing toasts replace page-reload flashes.
+- **Skeleton Loading** — CSS shimmer placeholders on feed while content loads.
+- **Smooth Page Transitions** — 300ms fade-in on every navigation.
+- **Animated Reactions** — Emoji buttons scale-bounce on click.
+- **Custom Scrollbar** — Themed to match the active palette.
+- **Empty State Illustrations** — Friendly SVG illustrations on all empty lists.
+- **Inline Upload Preview** — Thumbnail preview immediately after file selection.
+- **Upload Progress Bar** — Linear progress indicator during photo/video/meme
+  upload.
+- **Pull-to-Refresh** — Mobile gesture on feed container triggers reload.
+
+### Meme Engine & Creative Expression (v0.8.0)
+- **8 Built-In Filters** — Vaporwave, Deep Fry, Black & White, Sepia Vintage,
+  Neon Glow, Pixelate, Blur Background, Comic Book.
+- **Custom Filter Creation** — Users create filters by adjusting CSS filter
+  values (brightness, contrast, saturate, hue-rotate, blur, grayscale, sepia,
+  invert). Stored in `meme_filters` table.
+- **Meme Post Generation** — `/meme/new` accepts a photo + filter + caption,
+  saves as a `content_type='meme'` post.
+- **Selfie Upload** — `/selfie/upload` stores user's selfie in the users table.
+- **Selfie Memes** — `/meme/selfie` composites the user's selfie with a chosen
+  filter into a personalized meme post.
+- **Meme Gallery** — `/memes` shows a gallery of all meme posts from friends.
+  Memes can be shared (repost) with added caption.
+
+### Location Awareness & Local Connection (v0.8.0)
+- **Location Storage with Privacy Tiers** — `location_general` (text, e.g.
+  "Portland, OR"), optional `location_lat`/`location_lng`, and
+  `location_precision` (`hidden` | `general` | `precise`).
+- **Local Events Discovery** — `/local/events` fuzzy-matches events by general
+  location text.
+- **Local News Aggregation** — `/local/news` shows community-generated local-news
+  posts from friends and friends-of-friends in the same general location.
+- **Local Fun & Activities** — `/local/fun` surfaces posts tagged `#localfun` or
+  `#thingstodo`.
+- **Connect Locally** — `/local/people` lists accepted friends who share the
+  same `location_general`.
+- **Pseudo-Weather Badge** — Deterministic weather based on location hash +
+  day-of-year (Sunny/Cloudy/Rainy/Snowy + temperature range). No external API.
 
 ### Accuracy & Efficiency (v0.7.0-prep)
 - **Feed N+1 Elimination** — `get_feed()` now computes like counts, comment
@@ -268,6 +323,15 @@ All settings load from environment variables with sensible defaults:
 - Muted words (case-insensitive filtering)
 - Starter packs (follow-all bundles)
 - Reply controls (everyone/friends/mentioned/nobody)
+- 6 visual themes + 8 background patterns (Slate, Midnight, Ocean, Forest, Sunset, Lavender)
+- Meme engine: 8 built-in filters + custom filter creation
+- Selfie upload + selfie meme compositing
+- Location-aware local hub (events, news, fun, people, weather)
+- Privacy-tiered location storage (hidden/general/precise)
+- Toast notifications, skeleton loading, glassmorphism navbar
+- Card hover lift, animated reactions, custom scrollbar
+- Empty-state illustrations, inline upload preview, upload progress bar
+- High-contrast mode, font-size toggle, pull-to-refresh (mobile)
 - PWA manifest + service worker
 - Docker file presence
 - Full end-to-end integration flow
@@ -324,6 +388,7 @@ Supported actions: `moderate`, `notify`, `summarize`, `connection_prompt`,
 | **v0.4.0** | Short video (≤29s), voice messages, stories, professional photo albums, daily prompts, ice breakers, reading list, wishlist, collaborative notes, message groups, birthday reminders, mood status, expanded reactions (🥳🍑💾🖤☘️🙏🎉), "chronological with highlights" feed sort, Hermes AI integration |
 | **v0.5.0** | Expanded reactions (🦄♥️✨💕), admin disk usage, profile improvements, 13 healthy-social-media achievements, Stripe donations, backup, logo/motto swap, photo-first sort, community guidelines, post series, code optimizations |
 | **v0.6.0** | Bluesky-inspired: custom feeds, content labels, moderation lists, mute accounts, muted words, starter packs, reply controls — 7 new modules, 121 new tests |
+| **v0.8.0** | Visual themes (6 palettes + 8 patterns), meme engine (8 filters + custom + selfie memes), location-aware local hub (events, news, fun, people, weather), toast notifications, skeleton loading, glassmorphism navbar, card hover lift, animated reactions, custom scrollbar, empty-state illustrations, inline upload preview, upload progress bar, high-contrast mode, font-size toggle, pull-to-refresh — 30 new prompts, 32 new tests, 284 total |
 
 ---
 
