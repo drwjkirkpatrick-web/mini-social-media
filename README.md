@@ -168,7 +168,7 @@ discovery. Because the future is coming — and your data should be ready.
 - **Pseudo-Weather Badge** — Deterministic weather based on location hash +
   day-of-year (Sunny/Cloudy/Rainy/Snowy + temperature range). No external API.
 
-### Accuracy & Efficiency (v0.7.0-prep)
+### Accuracy & Efficiency (v0.7.0)
 - **Feed N+1 Elimination** — `get_feed()` now computes like counts, comment
   counts, and reaction tallies in two SQL queries instead of 3N+2. 50 posts
   are served with ≤ 3 total DB statements. Faster feed, happier Jetson.
@@ -388,6 +388,7 @@ Supported actions: `moderate`, `notify`, `summarize`, `connection_prompt`,
 | **v0.4.0** | Short video (≤29s), voice messages, stories, professional photo albums, daily prompts, ice breakers, reading list, wishlist, collaborative notes, message groups, birthday reminders, mood status, expanded reactions (🥳🍑💾🖤☘️🙏🎉), "chronological with highlights" feed sort, Hermes AI integration |
 | **v0.5.0** | Expanded reactions (🦄♥️✨💕), admin disk usage, profile improvements, 13 healthy-social-media achievements, Stripe donations, backup, logo/motto swap, photo-first sort, community guidelines, post series, code optimizations |
 | **v0.6.0** | Bluesky-inspired: custom feeds, content labels, moderation lists, mute accounts, muted words, starter packs, reply controls — 7 new modules, 121 new tests |
+| **v0.7.0** | Feed N+1 elimination, 30 accuracy & efficiency prompts — correctness (approval gating, idempotent likes, timezone handling, webhook HMAC) and performance (indexes, connection reuse, batch inserts, query-count ceilings) — 252 tests |
 | **v0.8.0** | Visual themes (6 palettes + 8 patterns), meme engine (8 filters + custom + selfie memes), location-aware local hub (events, news, fun, people, weather), toast notifications, skeleton loading, glassmorphism navbar, card hover lift, animated reactions, custom scrollbar, empty-state illustrations, inline upload preview, upload progress bar, high-contrast mode, font-size toggle, pull-to-refresh — 30 new prompts, 32 new tests, 284 total |
 
 ---
