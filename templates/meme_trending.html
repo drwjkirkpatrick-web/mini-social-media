@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Trending Meme Tags — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>📈 Trending Meme Tags</h1>
+  <p class="meta">Popular tags across the meme community right now.</p>
+  <div style="margin:0.75rem 0;">
+    <a href="{{ url_for('memes') }}" class="btn btn-small">← Back to Memes</a>
+    <a href="{{ url_for('meme_leaderboard') }}" class="btn btn-small">Leaderboard</a>
+    <a href="{{ url_for('meme_of_the_day') }}" class="btn btn-small">Meme of the Day</a>
+  </div>
+</div>
+
+{% if tags %}
+<div class="card">
+  <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+    {% for tag in tags %}
+    <a href="{{ url_for('meme_search', q=tag.name) }}" class="reaction-btn" style="text-decoration:none;">
+      #{{ tag.name }}
+      <span class="meta" style="margin-left:0.25rem;">({{ tag.count|default(0) }})</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="empty-state">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M7 12l3-3 3 3 4-5"/></svg>
+  <p>No trending tags yet. Tag your memes to get them trending!</p>
+  <a href="{{ url_for('create_meme') }}" class="btn btn-primary">Create a Meme</a>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>Search Memes</h3>
+  <form method="GET" action="{{ url_for('meme_search') }}" class="search-bar" style="display:flex;">
+    <input type="search" name="q" placeholder="Search meme posts..." aria-label="Search memes">
+    <button type="submit" class="btn btn-small" style="margin-left:0.25rem;">Search</button>
+  </form>
+</div>
+{% endblock %}

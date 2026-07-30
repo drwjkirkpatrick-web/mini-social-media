@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Meme Templates — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>🖼️ Meme Templates</h1>
+  <p class="meta">Browse, search, and favorite meme templates.</p>
+  <div style="display:flex;gap:0.5rem;margin:0.75rem 0;flex-wrap:wrap;">
+    <a href="{{ url_for('memes') }}" class="btn btn-small">← Back to Memes</a>
+    <a href="{{ url_for('meme_leaderboard') }}" class="btn btn-small">Leaderboard</a>
+    <a href="{{ url_for('meme_challenges') }}" class="btn btn-small">Challenges</a>
+  </div>
+
+  <form method="GET" action="{{ url_for('search_meme_templates') }}" class="search-bar" style="display:flex;margin:0.75rem 0;">
+    <input type="search" name="q" placeholder="Search templates..." value="{{ q|default('') }}" aria-label="Search templates">
+    <button type="submit" class="btn btn-small" style="margin-left:0.25rem;">Search</button>
+  </form>
+  {% if category %}<p class="meta">Filtered by category: <strong>{{ category }}</strong> · <a href="{{ url_for('meme_templates') }}">clear</a></p>{% endif %}
+</div>
+
+<div class="card">
+  <h3>Create Custom Template</h3>
+  <form method="POST" action="{{ url_for('create_meme_template') }}">
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" name="name" placeholder="e.g. Distracted Boyfriend" required>
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <input type="text" name="category" placeholder="e.g. reaction">
+    </div>
+    <div class="form-group">
+      <label>Image URL</label>
+      <input type="url" name="image_url" placeholder="https://..." required>
+    </div>
+    <div style="display:flex;gap:0.5rem;">
+      <div class="form-group" style="flex:1;">
+        <label>Width</label>
+        <input type="number" name="width" placeholder="500" min="0">
+      </div>
+      <div class="form-group" style="flex:1;">
+        <label>Height</label>
+        <input type="number" name="height" placeholder="500" min="0">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Create Template</button>
+  </form>
+</div>
+
+{% if templates %}
+<div class="grid-3">
+  {% for t in templates %}
+  <div class="card" style="text-align:center;">
+    <img src="{{ t.image_url }}" alt="{{ t.name }}" class="photo-thumb" style="height:160px;">
+    <h3 style="margin-top:0.5rem;font-size:1rem;">{{ t.name }}</h3>
+    {% if t.category %}<p class="meta">{{ t.category }}</p>{% endif %}
+    <a href="{{ url_for('toggle_template_favorite', template_id=t.id) }}" class="btn btn-small" style="margin-top:0.5rem;">
+      {% if t.id in favorites %}★ Unfavorite{% else %}☆ Favorite{% endif %}
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+  <p>No templates found. Create one above!</p>
+</div>
+{% endif %}
+{% endblock %}

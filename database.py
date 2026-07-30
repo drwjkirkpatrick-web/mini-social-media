@@ -369,6 +369,18 @@ def init_database():
         ("view_count", "ALTER TABLE posts ADD COLUMN view_count INTEGER DEFAULT 0"),
         ("is_local_news", "ALTER TABLE posts ADD COLUMN is_local_news INTEGER DEFAULT 0"),
         ("filter_id", "ALTER TABLE posts ADD COLUMN filter_id INTEGER"),
+        # v0.9.0: Meme engine post columns
+        ("top_text", "ALTER TABLE posts ADD COLUMN top_text TEXT"),
+        ("bottom_text", "ALTER TABLE posts ADD COLUMN bottom_text TEXT"),
+        ("text_color", "ALTER TABLE posts ADD COLUMN text_color TEXT DEFAULT '#ffffff'"),
+        ("text_rotation", "ALTER TABLE posts ADD COLUMN text_rotation REAL DEFAULT 0"),
+        ("filter_strength", "ALTER TABLE posts ADD COLUMN filter_strength INTEGER DEFAULT 100"),
+        ("watermark_text", "ALTER TABLE posts ADD COLUMN watermark_text TEXT"),
+        ("is_meme_draft", "ALTER TABLE posts ADD COLUMN is_meme_draft INTEGER DEFAULT 0"),
+        ("meme_scheduled_at", "ALTER TABLE posts ADD COLUMN meme_scheduled_at TEXT"),
+        ("meme_grid_layout", "ALTER TABLE posts ADD COLUMN meme_grid_layout TEXT"),
+        ("meme_remix_of", "ALTER TABLE posts ADD COLUMN meme_remix_of INTEGER"),
+        ("ab_variant_of", "ALTER TABLE posts ADD COLUMN ab_variant_of INTEGER"),
     ]:
         if col not in existing_posts:
             cursor.execute(ddl)
@@ -401,6 +413,189 @@ def init_database():
         cursor.executemany(
             "INSERT INTO meme_filters (name, description, css_filters, overlay_svg, created_by) VALUES (?, ?, ?, ?, ?)",
             built_in
+        )
+
+    # v0.9.0: Meme Templates
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'classic',
+            image_url TEXT,
+            width INTEGER DEFAULT 500,
+            height INTEGER DEFAULT 500,
+            created_by INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_template_favs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            template_id INTEGER NOT NULL REFERENCES meme_templates(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(user_id, template_id)
+        )
+    """)
+    # v0.9.0: Meme Stickers
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_stickers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            svg_data TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'classic',
+            created_by INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_sticker_placements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            sticker_id INTEGER NOT NULL REFERENCES meme_stickers(id) ON DELETE CASCADE,
+            pos_x REAL DEFAULT 0,
+            pos_y REAL DEFAULT 0,
+            rotation REAL DEFAULT 0,
+            scale REAL DEFAULT 1.0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.9.0: Meme Collections
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_collections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_collection_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            collection_id INTEGER NOT NULL REFERENCES meme_collections(id) ON DELETE CASCADE,
+            post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            added_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # v0.9.0: Meme Tags
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_post_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            tag_id INTEGER NOT NULL REFERENCES meme_tags(id) ON DELETE CASCADE,
+            UNIQUE(post_id, tag_id)
+        )
+    """)
+    # v0.9.0: Meme Votes
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_votes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            vote INTEGER NOT NULL CHECK(vote IN (-1, 1)),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(post_id, user_id)
+        )
+    """)
+    # v0.9.0: Meme Reactions
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_reactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            emoji TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(post_id, user_id, emoji)
+        )
+    """)
+    # v0.9.0: Meme Challenges
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_challenges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            starts_at TEXT,
+            ends_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_challenge_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            challenge_id INTEGER NOT NULL REFERENCES meme_challenges(id) ON DELETE CASCADE,
+            post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(challenge_id, post_id)
+        )
+    """)
+    # v0.9.0: Meme A/B Variants
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS meme_ab_variants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            variant_post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            votes_a INTEGER DEFAULT 0,
+            votes_b INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # Seed built-in meme templates if empty
+    mt_count = cursor.execute("SELECT COUNT(*) as c FROM meme_templates").fetchone()
+    if mt_count and mt_count["c"] == 0:
+        built_in_templates = [
+            ("Drake", "classic", "", 500, 600, 0),
+            ("Distracted Boyfriend", "classic", "", 600, 400, 0),
+            ("Woman Yelling at Cat", "classic", "", 500, 500, 0),
+            ("Change My Mind", "classic", "", 500, 500, 0),
+            ("Two Buttons", "classic", "", 600, 400, 0),
+            ("Expanding Brain", "classic", "", 500, 600, 0),
+            ("Gal Brain", "classic", "", 500, 600, 0),
+            ("Stonks", "classic", "", 500, 500, 0),
+            ("Roll Safe", "classic", "", 500, 500, 0),
+            ("Doge", "classic", "", 500, 500, 0),
+            ("This Is Fine", "classic", "", 500, 500, 0),
+            ("Surprised Pikachu", "classic", "", 500, 500, 0),
+        ]
+        cursor.executemany(
+            "INSERT INTO meme_templates (name, category, image_url, width, height, created_by) VALUES (?, ?, ?, ?, ?, ?)",
+            built_in_templates,
+        )
+    # Seed built-in meme stickers if empty
+    ms_count = cursor.execute("SELECT COUNT(*) as c FROM meme_stickers").fetchone()
+    if ms_count and ms_count["c"] == 0:
+        built_in_stickers = [
+            ("Fire", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='M32 4c4 8-4 12-2 20 2 6 8 4 8 12a12 12 0 11-24 0c0-8 8-10 10-18 1-4-2-8-2-14z' fill='orange'/></svg>", "classic", 0),
+            ("Heart", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='M32 58L8 30C0 20 8 6 20 10l12 8 12-8c12-4 20 10 12 20z' fill='red'/></svg>", "classic", 0),
+            ("100", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text x='32' y='40' font-size='28' font-weight='bold' text-anchor='middle' fill='red' font-family='sans-serif'>100</text></svg>", "classic", 0),
+            ("Crown", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='M8 48l4-28 16 12 8-20 8 20 16-12 4 28z' fill='gold' stroke='goldenrod'/></svg>", "classic", 0),
+            ("Thumbs Up", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='M24 56V28h-12v28zM24 28l12-22c4 0 6 2 6 6v12h14c2 0 4 2 3 4l-4 22c-1 2-3 4-5 4H24z' fill='skyblue' stroke='steelblue'/></svg>", "classic", 0),
+            ("Skull", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='28' r='20' fill='white' stroke='gray'/><circle cx='24' cy='28' r='4' fill='black'/><circle cx='40' cy='28' r='4' fill='black'/><rect x='28' y='40' width='8' height='10' fill='gray'/></svg>", "classic", 0),
+            ("Clown", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='24' fill='white' stroke='red'/><circle cx='20' cy='28' r='6' fill='red'/><circle cx='44' cy='28' r='6' fill='red'/><path d='M24 42c4 4 12 4 16 0' stroke='red' fill='none'/></svg>", "classic", 0),
+            ("Flex", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path d='M20 40c0-12 8-20 20-20s20 8 20 20-8 16-12 16h-4v-8c0-2-2-4-4-4h-4z' fill='peru'/><path d='M8 56c4-6 8-8 16-8' stroke='peru' fill='none'/></svg>", "classic", 0),
+        ]
+        cursor.executemany(
+            "INSERT INTO meme_stickers (name, svg_data, category, created_by) VALUES (?, ?, ?, ?)",
+            built_in_stickers,
+        )
+    # Seed built-in meme tags if empty
+    mtag_count = cursor.execute("SELECT COUNT(*) as c FROM meme_tags").fetchone()
+    if mtag_count and mtag_count["c"] == 0:
+        built_in_tags = [
+            "trending", "classic", "wholesome", "spicy", "dark",
+            "absurdist", "relatable", "niche", "ironic", "wholesome",
+        ]
+        cursor.executemany(
+            "INSERT OR IGNORE INTO meme_tags (name) VALUES (?)",
+            [(t,) for t in built_in_tags],
         )
 
     # v0.4.0: Stories
@@ -3063,6 +3258,643 @@ def get_meme_posts_by_friends(user_id: int, limit: int = 50) -> List[Dict[str, A
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Meme Engine - Templates, Stickers, Collections, Tags, Votes, Reactions,
+# Challenges, A/B Variants, Stats, Search, Drafts, Scheduling, Remixes (v0.9.0)
+# ---------------------------------------------------------------------------
+
+# ----- Meme Templates -----
+
+def create_meme_template(name: str, category: str, image_url: str, width: int, height: int, created_by: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO meme_templates (name, category, image_url, width, height, created_by) VALUES (?, ?, ?, ?, ?, ?)",
+        (name, category, image_url, width, height, created_by),
+    )
+    tid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return tid
+
+
+def list_meme_templates(category: str = None) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    if category:
+        rows = conn.execute(
+            "SELECT * FROM meme_templates WHERE category = ? ORDER BY id", (category,)
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM meme_templates ORDER BY id").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def search_meme_templates(query: str) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM meme_templates WHERE name LIKE ? ORDER BY id",
+        (f"%{query}%",),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def favorite_template(user_id: int, template_id: int) -> bool:
+    """Toggle a template favorite. Returns True if now favorited, False if unfavorited."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    existing = cursor.execute(
+        "SELECT id FROM meme_template_favs WHERE user_id = ? AND template_id = ?",
+        (user_id, template_id),
+    ).fetchone()
+    if existing:
+        cursor.execute(
+            "DELETE FROM meme_template_favs WHERE user_id = ? AND template_id = ?",
+            (user_id, template_id),
+        )
+        conn.commit()
+        conn.close()
+        return False
+    cursor.execute(
+        "INSERT INTO meme_template_favs (user_id, template_id) VALUES (?, ?)",
+        (user_id, template_id),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def list_favorite_templates(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT t.* FROM meme_templates t
+           JOIN meme_template_favs f ON f.template_id = t.id
+           WHERE f.user_id = ? ORDER BY f.created_at DESC""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ----- Meme Stickers -----
+
+def create_meme_sticker(name: str, svg_data: str, category: str, created_by: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO meme_stickers (name, svg_data, category, created_by) VALUES (?, ?, ?, ?)",
+        (name, svg_data, category, created_by),
+    )
+    sid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return sid
+
+
+def list_meme_stickers(category: str = None) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    if category:
+        rows = conn.execute(
+            "SELECT * FROM meme_stickers WHERE category = ? ORDER BY id", (category,)
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM meme_stickers ORDER BY id").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def place_sticker(post_id: int, sticker_id: int, pos_x: float, pos_y: float, rotation: float = 0, scale: float = 1.0) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO meme_sticker_placements (post_id, sticker_id, pos_x, pos_y, rotation, scale) VALUES (?, ?, ?, ?, ?, ?)",
+        (post_id, sticker_id, pos_x, pos_y, rotation, scale),
+    )
+    spid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return spid
+
+
+def get_sticker_placements(post_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT sp.*, s.name as sticker_name, s.svg_data
+           FROM meme_sticker_placements sp
+           JOIN meme_stickers s ON s.id = sp.sticker_id
+           WHERE sp.post_id = ? ORDER BY sp.id""",
+        (post_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ----- Meme Collections -----
+
+def create_meme_collection(user_id: int, name: str, description: str = '') -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO meme_collections (user_id, name, description) VALUES (?, ?, ?)",
+        (user_id, name, description),
+    )
+    cid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return cid
+
+
+def list_meme_collections(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT c.*,
+                  (SELECT COUNT(*) FROM meme_collection_items i WHERE i.collection_id = c.id) AS item_count
+           FROM meme_collections c WHERE c.user_id = ? ORDER BY c.created_at DESC""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def add_to_collection(collection_id: int, post_id: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR IGNORE INTO meme_collection_items (collection_id, post_id) VALUES (?, ?)",
+        (collection_id, post_id),
+    )
+    iid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return iid
+
+
+def remove_from_collection(collection_id: int, post_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM meme_collection_items WHERE collection_id = ? AND post_id = ?",
+        (collection_id, post_id),
+    )
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+
+def list_collection_items(collection_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT i.*, p.content_type, p.photo_url, p.text_content, p.top_text, p.bottom_text
+           FROM meme_collection_items i
+           JOIN posts p ON p.id = i.post_id
+           WHERE i.collection_id = ? ORDER BY i.added_at DESC""",
+        (collection_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ----- Meme Tags -----
+
+def create_meme_tag(name: str) -> int:
+    """Create a tag if it doesn't exist. Returns tag id (existing or new)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    existing = cursor.execute("SELECT id FROM meme_tags WHERE name = ?", (name,)).fetchone()
+    if existing:
+        tid = existing["id"]
+        conn.close()
+        return tid
+    cursor.execute("INSERT INTO meme_tags (name) VALUES (?)", (name,))
+    tid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return tid
+
+
+def list_meme_tags() -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM meme_tags ORDER BY name").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def tag_meme_post(post_id: int, tag_name: str) -> int:
+    """Create tag if needed then link to post. Returns link id."""
+    tag_id = create_meme_tag(tag_name)
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR IGNORE INTO meme_post_tags (post_id, tag_id) VALUES (?, ?)",
+        (post_id, tag_id),
+    )
+    link_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return link_id
+
+
+def get_meme_post_tags(post_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT t.* FROM meme_tags t
+           JOIN meme_post_tags pt ON pt.tag_id = t.id
+           WHERE pt.post_id = ? ORDER BY t.name""",
+        (post_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ----- Meme Votes & Score -----
+
+def vote_meme(post_id: int, user_id: int, vote: int) -> bool:
+    """Insert or update a vote (-1 or 1). Returns True on success."""
+    if vote not in (-1, 1):
+        return False
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO meme_votes (post_id, user_id, vote)
+           VALUES (?, ?, ?)
+           ON CONFLICT(post_id, user_id) DO UPDATE SET vote = excluded.vote""",
+        (post_id, user_id, vote),
+    )
+    ok = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return ok
+
+
+def get_meme_score(post_id: int) -> int:
+    """Return net vote score (upvotes - downvotes)."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT COALESCE(SUM(vote), 0) AS score FROM meme_votes WHERE post_id = ?",
+        (post_id,),
+    ).fetchone()
+    conn.close()
+    return row["score"] if row else 0
+
+
+def get_top_memes(user_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+    """Return top meme posts by score among friends, ordered by score desc."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT p.*, u.username, u.display_name, u.avatar_url,
+                  COALESCE((SELECT SUM(vote) FROM meme_votes v WHERE v.post_id = p.id), 0) AS score
+           FROM posts p
+           JOIN users u ON u.id = p.user_id
+           WHERE p.content_type = 'meme'
+             AND p.user_id IN (
+                 SELECT requester_id FROM friendships WHERE addressee_id = ? AND status = 'accepted'
+                 UNION
+                 SELECT addressee_id FROM friendships WHERE requester_id = ? AND status = 'accepted'
+             )
+           ORDER BY score DESC, p.created_at DESC
+           LIMIT ?""",
+        (user_id, user_id, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ----- Meme Reactions -----
+
+def react_meme(post_id: int, user_id: int, emoji: str) -> bool:
+    """Toggle an emoji reaction. Returns True if now reacted, False if removed."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    existing = cursor.execute(
+        "SELECT id FROM meme_reactions WHERE post_id = ? AND user_id = ? AND emoji = ?",
+        (post_id, user_id, emoji),
+    ).fetchone()
+    if existing:
+        cursor.execute(
+            "DELETE FROM meme_reactions WHERE post_id = ? AND user_id = ? AND emoji = ?",
+            (post_id, user_id, emoji),
+        )
+        conn.commit()
+        conn.close()
+        return False
+    cursor.execute(
+        "INSERT INTO meme_reactions (post_id, user_id, emoji) VALUES (?, ?, ?)",
+        (post_id, user_id, emoji),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_meme_reactions(post_id: int) -> List[Dict[str, Any]]:
+    """Return list of {emoji, count} for a post."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT emoji, COUNT(*) as count
+           FROM meme_reactions WHERE post_id = ?
+           GROUP BY emoji ORDER BY count DESC""",
+        (post_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ----- Meme Challenges -----
+
+def create_meme_challenge(title: str, description: str, starts_at: str, ends_at: str) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO meme_challenges (title, description, starts_at, ends_at) VALUES (?, ?, ?, ?)",
+        (title, description, starts_at, ends_at),
+    )
+    chid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return chid
+
+
+def list_meme_challenges() -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT c.*,
+                  (SELECT COUNT(*) FROM meme_challenge_entries e WHERE e.challenge_id = c.id) AS entry_count
+           FROM meme_challenges c ORDER BY c.starts_at DESC"""
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def enter_meme_challenge(challenge_id: int, post_id: int, user_id: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR IGNORE INTO meme_challenge_entries (challenge_id, post_id, user_id) VALUES (?, ?, ?)",
+        (challenge_id, post_id, user_id),
+    )
+    eid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return eid
+
+
+def get_challenge_entries(challenge_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT e.*, p.content_type, p.photo_url, p.top_text, p.bottom_text,
+                  u.username, u.display_name, u.avatar_url
+           FROM meme_challenge_entries e
+           JOIN posts p ON p.id = e.post_id
+           JOIN users u ON u.id = e.user_id
+           WHERE e.challenge_id = ? ORDER BY e.created_at DESC""",
+        (challenge_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ----- Meme of the Day -----
+
+def get_meme_of_the_day() -> Dict[str, Any]:
+    """Deterministically pick a meme of the day based on date hash + all meme posts."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT id FROM posts WHERE content_type = 'meme' ORDER BY id"
+    ).fetchall()
+    conn.close()
+    if not rows:
+        return {}
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    all_ids = ",".join(str(r["id"]) for r in rows)
+    h = hashlib.md5(f"{date_str}:{all_ids}".encode()).hexdigest()
+    idx = int(h[:8], 16) % len(rows)
+    chosen_id = rows[idx]["id"]
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT p.*, u.username, u.display_name, u.avatar_url
+           FROM posts p JOIN users u ON u.id = p.user_id
+           WHERE p.id = ?""",
+        (chosen_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else {}
+
+
+# ----- Meme A/B Variants -----
+
+def create_ab_variant(original_post_id: int, variant_post_id: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO meme_ab_variants (original_post_id, variant_post_id) VALUES (?, ?)",
+        (original_post_id, variant_post_id),
+    )
+    vid = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return vid
+
+
+def vote_ab(variant_id: int, choice: str) -> bool:
+    """Vote for 'a' or 'b' on an A/B variant. Returns True on success."""
+    if choice not in ('a', 'b'):
+        return False
+    conn = get_connection()
+    cursor = conn.cursor()
+    if choice == 'a':
+        cursor.execute(
+            "UPDATE meme_ab_variants SET votes_a = votes_a + 1 WHERE id = ?",
+            (variant_id,),
+        )
+    else:
+        cursor.execute(
+            "UPDATE meme_ab_variants SET votes_b = votes_b + 1 WHERE id = ?",
+            (variant_id,),
+        )
+    ok = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return ok
+
+
+def get_ab_variant(variant_id: int) -> Dict[str, Any]:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM meme_ab_variants WHERE id = ?", (variant_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else {}
+
+
+# ----- Trending Tags -----
+
+def get_trending_meme_tags(limit: int = 10) -> List[Dict[str, Any]]:
+    """Count tags on meme posts in the last 7 days, return top N."""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT t.id, t.name, COUNT(pt.post_id) AS count
+           FROM meme_tags t
+           JOIN meme_post_tags pt ON pt.tag_id = t.id
+           JOIN posts p ON p.id = pt.post_id
+           WHERE p.content_type = 'meme'
+             AND p.created_at >= datetime('now', '-7 days')
+           GROUP BY t.id, t.name
+           ORDER BY count DESC
+           LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ----- Update / Stats / Export / Drafts / Scheduling / Search / Remix -----
+
+_MEME_UPDATABLE_COLS = {
+    "top_text", "bottom_text", "text_color", "text_rotation", "filter_strength",
+    "watermark_text", "is_meme_draft", "meme_scheduled_at", "meme_grid_layout",
+    "meme_remix_of", "ab_variant_of",
+}
+
+
+def update_meme_post(post_id: int, **kwargs) -> bool:
+    """Update meme-specific columns on a post. Returns True on success."""
+    updates = {k: v for k, v in kwargs.items() if k in _MEME_UPDATABLE_COLS}
+    if not updates:
+        return False
+    set_clause = ", ".join(f"{col} = ?" for col in updates)
+    params = list(updates.values()) + [post_id]
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(f"UPDATE posts SET {set_clause} WHERE id = ?", params)
+    ok = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return ok
+
+
+def get_meme_stats(post_id: int) -> Dict[str, Any]:
+    """Return stats: views, votes (net), reactions count, remixes count."""
+    conn = get_connection()
+    views = conn.execute(
+        "SELECT COALESCE(view_count, 0) AS v FROM posts WHERE id = ?", (post_id,)
+    ).fetchone()
+    votes = conn.execute(
+        "SELECT COALESCE(SUM(vote), 0) AS s FROM meme_votes WHERE post_id = ?", (post_id,)
+    ).fetchone()
+    reactions = conn.execute(
+        "SELECT COUNT(*) AS c FROM meme_reactions WHERE post_id = ?", (post_id,)
+    ).fetchone()
+    remixes = conn.execute(
+        "SELECT COUNT(*) AS c FROM posts WHERE meme_remix_of = ?", (post_id,)
+    ).fetchone()
+    conn.close()
+    return {
+        "views": views["v"] if views else 0,
+        "votes": votes["s"] if votes else 0,
+        "reactions": reactions["c"] if reactions else 0,
+        "remixes": remixes["c"] if remixes else 0,
+    }
+
+
+def export_meme_json(post_id: int) -> Dict[str, Any]:
+    """Return all meme data for a post as a dict (for export/import)."""
+    conn = get_connection()
+    post = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
+    if not post:
+        conn.close()
+        return {}
+    post = dict(post)
+    tags = conn.execute(
+        """SELECT t.name FROM meme_tags t
+           JOIN meme_post_tags pt ON pt.tag_id = t.id WHERE pt.post_id = ?""",
+        (post_id,),
+    ).fetchall()
+    stickers = conn.execute(
+        """SELECT sp.*, s.name as sticker_name, s.svg_data
+           FROM meme_sticker_placements sp
+           JOIN meme_stickers s ON s.id = sp.sticker_id
+           WHERE sp.post_id = ?""",
+        (post_id,),
+    ).fetchall()
+    reactions = conn.execute(
+        """SELECT emoji, COUNT(*) as count FROM meme_reactions
+           WHERE post_id = ? GROUP BY emoji""",
+        (post_id,),
+    ).fetchall()
+    conn.close()
+    return {
+        "post": post,
+        "tags": [r["name"] for r in tags],
+        "stickers": [dict(r) for r in stickers],
+        "reactions": [dict(r) for r in reactions],
+        "score": get_meme_score(post_id),
+        "stats": get_meme_stats(post_id),
+    }
+
+
+def list_meme_drafts(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT p.*, u.username, u.display_name, u.avatar_url
+           FROM posts p JOIN users u ON u.id = p.user_id
+           WHERE p.user_id = ? AND p.content_type = 'meme' AND p.is_meme_draft = 1
+           ORDER BY p.created_at DESC""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def list_scheduled_memes(user_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT p.*, u.username, u.display_name, u.avatar_url
+           FROM posts p JOIN users u ON u.id = p.user_id
+           WHERE p.user_id = ? AND p.content_type = 'meme'
+             AND p.meme_scheduled_at IS NOT NULL AND p.meme_scheduled_at != ''
+           ORDER BY p.meme_scheduled_at ASC""",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def search_meme_posts(query: str) -> List[Dict[str, Any]]:
+    """Search meme posts by top_text, bottom_text, watermark_text."""
+    conn = get_connection()
+    like = f"%{query}%"
+    rows = conn.execute(
+        """SELECT p.*, u.username, u.display_name, u.avatar_url
+           FROM posts p JOIN users u ON u.id = p.user_id
+           WHERE p.content_type = 'meme'
+             AND (p.top_text LIKE ? OR p.bottom_text LIKE ? OR p.watermark_text LIKE ?)
+           ORDER BY p.created_at DESC""",
+        (like, like, like),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_meme_remix_chain(post_id: int) -> List[Dict[str, Any]]:
+    """Follow meme_remix_of recursively upward, return chain from root to this post."""
+    chain = []
+    current_id = post_id
+    visited = set()
+    conn = get_connection()
+    while current_id and current_id not in visited:
+        visited.add(current_id)
+        row = conn.execute(
+            "SELECT * FROM posts WHERE id = ?", (current_id,)
+        ).fetchone()
+        if not row:
+            break
+        chain.append(dict(row))
+        current_id = row["meme_remix_of"]
+    conn.close()
+    chain.reverse()
+    return chain
 
 
 # ---------------------------------------------------------------------------

@@ -28,10 +28,11 @@ integration, and Bluesky-inspired moderation & discovery tools.
   mute accounts, muted words, starter packs, reply controls — 250 tests
 - [x] v0.7.0-prep: Feed N+1 elimination + 30 accuracy/efficiency prompts — 252 tests
 - [x] v0.8.0: Visual themes, meme engine, location awareness, local hub — 284 tests
+- [x] v0.9.0: Meme engine v2 (memelord.com-inspired) — 30 new features, 35 new tests, 319 total
 - [x] GitHub repo created and pushed
 
 ### In Progress
-- [ ] v0.7.0: Implement remaining accuracy/efficiency prompts from PROMPTS_v7.md
+- (none currently)
 
 ### Not Started
 - [ ] PostgreSQL backend for >100 users
@@ -61,17 +62,17 @@ integration, and Bluesky-inspired moderation & discovery tools.
 
 ## 5. Next Step (only ONE)
 
-> **Next:** Commit v0.6.0 and push to GitHub `origin main`.
+> **Next:** Commit v0.9.0 and push to GitHub `origin main`.
 
 ## 6. Environment & Tooling Notes
 - Runtime: Python 3.11, Flask, Werkzeug, SQLite, flask-socketio, argon2-cffi, gunicorn
 - Local hosting: `127.0.0.1:9197`
 - Docker: `docker compose up --build`
 - GitHub: `drwjkirkpatrick-web/mini-social-media`
-- Tests: `252 passed` via `.venv/bin/python -m pytest tests/ -v`
-- Templates: 71 HTML files
-- Database tables: 54
-- Test files: 81
+- Tests: `319 passed` via `.venv/bin/python -m pytest tests/ -v`
+- Templates: 81 HTML files
+- Database tables: 67
+- Test files: 82
 - Prompt files: 6 (PROMPTS, PROMPTS_v2..v5, PROMPTS_v7)
 
 ## 7. Recent Session Log
@@ -86,6 +87,13 @@ integration, and Bluesky-inspired moderation & discovery tools.
 - 2026-07-29: v0.6.0 — Bluesky-inspired: custom feeds, content labels,
   moderation lists, mute accounts, muted words, starter packs, reply controls.
   7 new modules, 11 new tables, 121 new tests, 250 total.
+- 2026-07-30: v0.9.0 — Meme engine v2 inspired by memelord.com. 30 new features:
+  12 classic templates, template search/favorites, top/bottom text, text color,
+  rotation, 8 SVG stickers + placement, watermark, meme emoji reactions, remix
+  chain, upvote/downvote + leaderboard, collections, tags, drafts, scheduling,
+  A/B variants, filter roulette, filter strength, before/after compare, meme
+  grid, meme of the day, challenges, stats, JSON export, trending tags.
+  13 new tables, 34 new routes, 10 new templates, 35 new tests, 319 total.
 
 ## 8. References
 - Prompts v1: `PROMPTS.md` (30 original prompts)

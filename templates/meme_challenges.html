@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Meme Challenges — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>🎯 Meme Challenges</h1>
+  <p class="meta">Compete in themed meme challenges.</p>
+  <div style="margin:0.75rem 0;">
+    <a href="{{ url_for('memes') }}" class="btn btn-small">← Back to Memes</a>
+    <a href="{{ url_for('meme_leaderboard') }}" class="btn btn-small">Leaderboard</a>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Create a Challenge</h3>
+  <form method="POST" action="{{ url_for('create_meme_challenge') }}">
+    <div class="form-group">
+      <label>Challenge Title</label>
+      <input type="text" name="title" placeholder="e.g. Best Monday Meme" required>
+    </div>
+    <div class="form-group">
+      <label>Description (optional)</label>
+      <textarea name="description" rows="2" placeholder="Challenge rules or theme"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Ends At (optional)</label>
+      <input type="datetime-local" name="ends_at">
+    </div>
+    <button type="submit" class="btn btn-primary">Create Challenge</button>
+  </form>
+</div>
+
+{% if challenges %}
+{% for ch in challenges %}
+<div class="card">
+  <h3>{{ ch.title }}</h3>
+  {% if ch.description %}<p>{{ ch.description }}</p>{% endif %}
+  <p class="meta">
+    by {{ ch.display_name or ch.username }} ·
+    {{ ch.entry_count|default(0) }} entr(s)
+    {% if ch.ends_at %}· ends {{ ch.ends_at }}{% endif %}
+    {% if ch.status %}· <strong>{{ ch.status }}</strong>{% endif %}
+  </p>
+
+  <div style="margin-top:0.75rem;">
+    <h4 style="font-size:0.95rem;">Enter with a meme:</h4>
+    <form method="POST" action="{{ url_for('enter_meme_challenge', challenge_id=ch.id) }}" style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;">
+      <div class="form-group" style="flex:1;min-width:150px;margin-bottom:0;">
+        <label>Meme Post ID</label>
+        <input type="number" name="post_id" placeholder="123" min="1" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Enter Challenge</button>
+    </form>
+  </div>
+
+  {% if ch.entries %}
+  <div style="margin-top:0.75rem;">
+    <h4 style="font-size:0.95rem;">Entries:</h4>
+    <div class="grid-3">
+      {% for e in ch.entries %}
+      <div style="text-align:center;">
+        <img src="{{ e.photo_url }}" alt="Entry" class="photo-thumb" style="height:120px;">
+        <p class="meta" style="margin-top:0.25rem;">{{ e.display_name or e.username }} · {{ e.votes|default(0) }} votes</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-state">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+  <p>No active challenges. Start one above!</p>
+</div>
+{% endif %}
+{% endblock %}

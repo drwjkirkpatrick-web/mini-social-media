@@ -162,6 +162,84 @@ discovery. Because the future is coming — and your data should be ready.
 - **Meme Gallery** — `/memes` shows a gallery of all meme posts from friends.
   Memes can be shared (repost) with added caption.
 
+### Meme Engine v0.9.0 — Advanced Creative Tools (30 New Features)
+Inspired by [memelord.com](https://memelord.com), adapted for privacy-first
+local-first communities. No external APIs — all deterministic, all local.
+
+**Templates & Text**
+- **12 Classic Meme Templates** — Drake, Distracted Boyfriend, Woman Yelling at
+  Cat, Change My Mind, Two Buttons, Expanding Brain, Gal Brain, Stonks, Roll
+  Safe, Doge, This Is Fine, Surprised Pikachu. Seeded in `meme_templates` table.
+- **Custom Template Creation** — `/meme/template/new` lets users add their own
+  templates with name, category, image URL, and dimensions.
+- **Template Search** — `/meme/template/search?q=` fuzzy-searches templates by
+  name or category.
+- **Template Favorites** — `/meme/template/<id>/favorite` toggles a favorite;
+  favorited templates appear in the user's shortlist.
+- **Top/Bottom Text** — Classic Impact-style top text and bottom text fields on
+  meme posts. Stored as `top_text` and `bottom_text` columns on `posts`.
+- **Custom Text Color** — `/meme/<id>/text-color` sets the meme text color
+  (default white, any hex).
+- **Text Rotation** — `text_rotation` column allows tilted meme text (0–360°).
+- **Caption Suggestion Bank** — 10 seeded trending tags (`trending`, `classic`,
+  `wholesome`, `spicy`, `dark`, `absurdist`, `relatable`, `niche`, `ironic`)
+  serve as caption inspiration.
+
+**Stickers & Overlays**
+- **8 Built-In SVG Stickers** — Fire, Heart, 100, Crown, Thumbs Up, Skull,
+  Clown, Flex. Seeded in `meme_stickers` table.
+- **Sticker Placement** — `/meme/<id>/sticker` places stickers on meme posts
+  with x/y coordinates, rotation, and scale.
+- **User Watermark** — `/meme/<id>/watermark` stamps a custom watermark (e.g.
+  `@username`) on meme posts.
+
+**Interactions & Voting**
+- **Meme-Specific Emoji Reactions** — `/meme/<id>/react-meme` toggles emoji
+  reactions (🔥, ❤️, 😂, etc.) separate from post reactions.
+- **Meme Remix Chain** — `/meme/<id>/remix` creates a remix post with
+  `meme_remix_of` pointing to the original. Full chain traceable via
+  `/meme/remix-chain/<id>`.
+- **Upvote/Downvote System** — `/meme/<id>/vote` casts a +1 or -1 vote.
+  `meme_votes` table with UNIQUE constraint per user per post.
+- **Meme Leaderboard** — `/meme/leaderboard` ranks memes by net vote score
+  among friends.
+
+**Organization & Workflow**
+- **Meme Collections** — `/meme/collections` lets users organize memes into
+  named folders. Add/remove posts from collections.
+- **Custom Meme Tags** — `/meme/<id>/tag` tags memes with free-form labels.
+  `meme_tags` and `meme_post_tags` tables.
+- **Meme Drafts** — `/meme/drafts` lists unfinished memes. Toggle draft status
+  via `/meme/<id>/draft`.
+- **Meme Scheduling** — `/meme/<id>/schedule` sets a future publish time.
+  `list_scheduled_memes()` queries upcoming scheduled memes.
+
+**Variations & Tools**
+- **A/B Variant Voting** — `/meme/<id>/ab-variant` creates a variant pair.
+  Vote via `/meme/ab/<id>/vote` (choice=a or b). `meme_ab_variants` table.
+- **Filter Roulette** — `/meme/filter-roulette` picks a random filter and
+  redirects to the meme creation page with it pre-selected.
+- **Filter Strength Slider** — `/meme/<id>/filter-strength` sets intensity
+  0–100%. `filter_strength` column on `posts`.
+- **Before/After Comparison** — `/meme/<id>/compare` shows side-by-side
+  original vs filtered meme.
+- **Meme Grid Maker** — `/meme/grid` combines multiple photos into a 2×2 or
+  3×3 grid meme. `meme_grid_layout` column on `posts`.
+- **Custom Text Color Picker** — Full hex color selection for meme text.
+
+**Social & Discovery**
+- **Meme of the Day** — `/meme/of-the-day` deterministically selects a meme
+  using date + post hash. Same result all day, changes next day.
+- **Weekly Meme Challenges** — `/meme/challenges` lists active challenges.
+  Create challenges, enter with a meme post. `meme_challenges` and
+  `meme_challenge_entries` tables.
+- **Meme Stats Page** — `/meme/<id>/stats` shows views, votes, reactions, and
+  remix count for a single meme.
+- **Meme JSON Export** — `/meme/<id>/export` returns full meme data as JSON
+  (post, tags, stickers, reactions).
+- **Trending Meme Tags** — `/meme/trending` shows most-used tags in the last
+  7 days. `get_trending_meme_tags()` with time-windowed counting.
+
 ### Location Awareness & Local Connection (v0.8.0)
 - **Location Storage with Privacy Tiers** — `location_general` (text, e.g.
   "Portland, OR"), optional `location_lat`/`location_lng`, and
@@ -214,7 +292,7 @@ create_user("admin", "admin@example.com", hash_password("changeme"), role="admin
 |-------|-----------|
 | Backend | Flask + Werkzeug + Gunicorn |
 | Real-Time | Flask-SocketIO (threading async) |
-| Database | SQLite (WAL mode, 54 tables) |
+| Database | SQLite (WAL mode, 67 tables) |
 | Auth | PBKDF2 (legacy) + Argon2id (default, quantum-safe) |
 | Photos | Werkzeug secure_filename + timestamp prefix |
 | Video/Voice | HTML5 player, ffprobe duration check |
@@ -390,6 +468,7 @@ Supported actions: `moderate`, `notify`, `summarize`, `connection_prompt`,
 | **v0.6.0** | Bluesky-inspired: custom feeds, content labels, moderation lists, mute accounts, muted words, starter packs, reply controls — 7 new modules, 121 new tests |
 | **v0.7.0** | Feed N+1 elimination, 30 accuracy & efficiency prompts — correctness (approval gating, idempotent likes, timezone handling, webhook HMAC) and performance (indexes, connection reuse, batch inserts, query-count ceilings) — 252 tests |
 | **v0.8.0** | Visual themes (6 palettes + 8 patterns), meme engine (8 filters + custom + selfie memes), location-aware local hub (events, news, fun, people, weather), toast notifications, skeleton loading, glassmorphism navbar, card hover lift, animated reactions, custom scrollbar, empty-state illustrations, inline upload preview, upload progress bar, high-contrast mode, font-size toggle, pull-to-refresh — 30 new prompts, 32 new tests, 284 total |
+| **v0.9.0** | Meme engine v2 inspired by memelord.com: 12 classic templates + search + favorites, top/bottom text + Impact font styling + text color + rotation, 8 SVG stickers + placement, watermark, meme-specific emoji reactions, remix chain with attribution, upvote/downvote + leaderboard, meme collections/folders, custom meme tags, meme drafts + scheduling, A/B variant voting, filter roulette, filter strength slider, before/after comparison, meme grid maker (2×2/3×3), meme of the day, weekly challenges, meme stats page, JSON export, trending tags — 30 new prompts, 35 new tests, 319 total |
 
 ---
 

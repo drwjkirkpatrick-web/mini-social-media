@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Meme Collections — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>📁 Meme Collections</h1>
+  <p class="meta">Group your favorite memes into curated collections.</p>
+  <div style="margin:0.75rem 0;">
+    <a href="{{ url_for('memes') }}" class="btn btn-small">← Back to Memes</a>
+    <a href="{{ url_for('meme_leaderboard') }}" class="btn btn-small">Leaderboard</a>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Create a Collection</h3>
+  <form method="POST" action="{{ url_for('create_meme_collection') }}">
+    <div class="form-group">
+      <label>Collection Name</label>
+      <input type="text" name="name" placeholder="e.g. Best Cat Memes" required>
+    </div>
+    <div class="form-group">
+      <label>Description (optional)</label>
+      <textarea name="description" rows="2" placeholder="What's this collection about?"></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Create Collection</button>
+  </form>
+</div>
+
+{% if collections %}
+{% for c in collections %}
+<div class="card">
+  <h3>{{ c.name }}</h3>
+  {% if c.description %}<p>{{ c.description }}</p>{% endif %}
+  <p class="meta">{{ c.item_count|default(0) }} meme(s) · created {{ c.created_at|default('') }}</p>
+  {% if c.items %}
+  <div class="grid-3" style="margin-top:0.75rem;">
+    {% for item in c.items %}
+    <div style="text-align:center;">
+      <img src="{{ item.photo_url }}" alt="Meme" class="photo-thumb" style="height:120px;">
+      {% if item.caption %}<p class="meta" style="margin-top:0.25rem;">{{ item.caption }}</p>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-state">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+  <p>No collections yet. Create one above!</p>
+</div>
+{% endif %}
+{% endblock %}

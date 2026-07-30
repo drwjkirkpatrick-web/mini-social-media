@@ -2381,6 +2381,409 @@ def meme_selfie():
 
 
 # ---------------------------------------------------------------------------
+# v0.9.0: Meme Engine — Advanced Routes
+# ---------------------------------------------------------------------------
+
+@app.route("/meme/templates")
+@login_required
+def meme_templates():
+    user = _current_user()
+    category = request.args.get("category", "").strip()
+    if category:
+        templates = database.list_meme_templates(category=category)
+    else:
+        templates = database.list_meme_templates()
+    favorites = database.get_favorite_template_ids(user["id"])
+    return render_template("meme_templates.html", templates=templates, category=category, favorites=favorites)
+
+
+@app.route("/meme/template/new", methods=["POST"])
+@login_required
+def create_meme_template():
+    user = _current_user()
+    name = request.form.get("name", "").strip()
+    category = request.form.get("category", "").strip()
+    image_url = request.form.get("image_url", "").strip()
+    width = request.form.get("width", type=int) or 0
+    height = request.form.get("height", type=int) or 0
+    if not name or not image_url:
+        flash("Name and image URL are required.", "error")
+        return redirect(url_for("meme_templates"))
+    database.create_meme_template(name, category, image_url, width, height, user["id"])
+    flash(f"Template '{name}' created!", "success")
+    return redirect(url_for("meme_templates"))
+
+
+@app.route("/meme/template/<int:template_id>/favorite")
+@login_required
+def toggle_template_favorite(template_id):
+    user = _current_user()
+    database.toggle_template_favorite(user["id"], template_id)
+    flash("Favorite updated.", "success")
+    return redirect(url_for("meme_templates"))
+
+
+@app.route("/meme/template/search")
+@login_required
+def search_meme_templates():
+    q = request.args.get("q", "").strip()
+    templates = database.search_meme_templates(q) if q else []
+    return render_template("meme_templates.html", templates=templates, q=q, favorites=[])
+
+
+@app.route("/meme/<int:post_id>/top-text", methods=["POST"])
+@login_required
+def set_meme_top_text(post_id):
+    user = _current_user()
+    top_text = request.form.get("top_text", "").strip()
+    bottom_text = request.form.get("bottom_text", "").strip()
+    text_color = request.form.get("text_color", "#ffffff").strip()
+    text_rotation = request.form.get("text_rotation", "0").strip()
+    database.set_meme_text_overlay(post_id, user["id"], top_text, bottom_text, text_color, text_rotation)
+    flash("Text overlay updated!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/<int:post_id>/sticker", methods=["POST"])
+@login_required
+def place_meme_sticker(post_id):
+    user = _current_user()
+    sticker_id = request.form.get("sticker_id", type=int)
+    pos_x = request.form.get("pos_x", type=float) or 0.0
+    pos_y = request.form.get("pos_y", type=float) or 0.0
+    rotation = request.form.get("rotation", type=float) or 0.0
+    scale = request.form.get("scale", type=float) or 1.0
+    database.place_meme_sticker(post_id, user["id"], sticker_id, pos_x, pos_y, rotation, scale)
+    flash("Sticker placed!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/<int:post_id>/watermark", methods=["POST"])
+@login_required
+def set_meme_watermark(post_id):
+    user = _current_user()
+    watermark_text = request.form.get("watermark_text", "").strip()
+    database.set_meme_watermark(post_id, user["id"], watermark_text)
+    flash("Watermark set!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/<int:post_id>/react-meme", methods=["POST"])
+@login_required
+def react_meme(post_id):
+    user = _current_user()
+    emoji = request.form.get("emoji", "").strip()
+    if not emoji:
+        flash("Pick an emoji to react.", "error")
+        return redirect(url_for("feed"))
+    database.toggle_meme_reaction(post_id, user["id"], emoji)
+    flash("Reaction toggled!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/<int:post_id>/remix", methods=["POST"])
+@login_required
+def remix_meme(post_id):
+    user = _current_user()
+    new_caption = request.form.get("caption", "").strip()
+    new_filter_id = request.form.get("filter_id", type=int)
+    original = database.get_meme_post(post_id)
+    if not original:
+        flash("Original meme not found.", "error")
+        return redirect(url_for("feed"))
+    new_post_id = database.create_meme_post(
+        user["id"], original["photo_url"], new_filter_id or 0, new_caption or None
+    )
+    database.set_meme_remix_of(new_post_id, post_id)
+    flash("Remix created!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/<int:post_id>/vote", methods=["POST"])
+@login_required
+def vote_meme(post_id):
+    user = _current_user()
+    vote = request.form.get("vote", type=int)
+    if vote not in (1, -1):
+        flash("Invalid vote.", "error")
+        return redirect(url_for("feed"))
+    database.vote_meme_post(post_id, user["id"], vote)
+    flash("Vote recorded!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/leaderboard")
+@login_required
+def meme_leaderboard():
+    memes = database.get_meme_leaderboard()
+    return render_template("meme_leaderboard.html", memes=memes)
+
+
+@app.route("/meme/<int:post_id>/collection", methods=["POST"])
+@login_required
+def add_meme_to_collection(post_id):
+    user = _current_user()
+    collection_id = request.form.get("collection_id", type=int)
+    if not collection_id:
+        flash("Choose a collection.", "error")
+        return redirect(url_for("meme_collections"))
+    database.add_meme_to_collection(collection_id, user["id"], post_id)
+    flash("Added to collection!", "success")
+    return redirect(url_for("meme_collections"))
+
+
+@app.route("/meme/collections")
+@login_required
+def meme_collections():
+    user = _current_user()
+    collections = database.list_meme_collections(user["id"])
+    return render_template("meme_collections.html", collections=collections)
+
+
+@app.route("/meme/collection/new", methods=["POST"])
+@login_required
+def create_meme_collection():
+    user = _current_user()
+    name = request.form.get("name", "").strip()
+    description = request.form.get("description", "").strip()
+    if not name:
+        flash("Collection name required.", "error")
+        return redirect(url_for("meme_collections"))
+    database.create_meme_collection(name, description, user["id"])
+    flash(f"Collection '{name}' created!", "success")
+    return redirect(url_for("meme_collections"))
+
+
+@app.route("/meme/<int:post_id>/tag", methods=["POST"])
+@login_required
+def tag_meme(post_id):
+    user = _current_user()
+    tag_name = request.form.get("tag_name", "").strip()
+    if not tag_name:
+        flash("Tag required.", "error")
+        return redirect(url_for("feed"))
+    database.tag_meme_post(post_id, user["id"], tag_name)
+    flash(f"Tagged with #{tag_name}!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/drafts")
+@login_required
+def meme_drafts():
+    user = _current_user()
+    drafts = database.list_meme_drafts(user["id"])
+    return render_template("meme_drafts.html", drafts=drafts)
+
+
+@app.route("/meme/<int:post_id>/draft", methods=["POST"])
+@login_required
+def toggle_meme_draft(post_id):
+    user = _current_user()
+    database.toggle_meme_draft(post_id, user["id"])
+    flash("Draft status toggled!", "success")
+    return redirect(url_for("meme_drafts"))
+
+
+@app.route("/meme/<int:post_id>/schedule", methods=["POST"])
+@login_required
+def schedule_meme(post_id):
+    user = _current_user()
+    scheduled_at = request.form.get("scheduled_at", "").strip()
+    if not scheduled_at:
+        flash("Scheduled date/time required.", "error")
+        return redirect(url_for("meme_drafts"))
+    try:
+        dt = datetime.fromisoformat(scheduled_at)
+    except ValueError:
+        flash("Invalid date format.", "error")
+        return redirect(url_for("meme_drafts"))
+    database.schedule_meme_post(post_id, user["id"], dt.isoformat())
+    flash("Meme scheduled!", "success")
+    return redirect(url_for("meme_drafts"))
+
+
+@app.route("/meme/<int:post_id>/ab-variant", methods=["POST"])
+@login_required
+def create_meme_ab_variant(post_id):
+    user = _current_user()
+    variant_filter_id = request.form.get("variant_filter_id", type=int)
+    variant_id = database.create_meme_ab_variant(post_id, user["id"], variant_filter_id or 0)
+    flash("A/B variant created!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/ab/<int:variant_id>/vote", methods=["POST"])
+@login_required
+def vote_meme_ab_variant(variant_id):
+    user = _current_user()
+    choice = request.form.get("choice", "").strip().lower()
+    if choice not in ("a", "b"):
+        flash("Pick option A or B.", "error")
+        return redirect(url_for("feed"))
+    database.vote_meme_ab_variant(variant_id, user["id"], choice)
+    flash("Vote recorded!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/filter-roulette")
+@login_required
+def meme_filter_roulette():
+    filters = database.list_meme_filters()
+    if not filters:
+        flash("No filters available yet.", "info")
+        return redirect(url_for("create_meme"))
+    import random
+    chosen = random.choice(filters)
+    flash(f"🎲 Filter roulette: '{chosen['name']}'!", "info")
+    return redirect(url_for("create_meme", filter_id=chosen["id"]))
+
+
+@app.route("/meme/<int:post_id>/filter-strength", methods=["POST"])
+@login_required
+def set_meme_filter_strength(post_id):
+    user = _current_user()
+    strength = request.form.get("strength", type=int)
+    if strength is None or not (0 <= strength <= 100):
+        flash("Filter strength must be 0-100.", "error")
+        return redirect(url_for("feed"))
+    database.set_meme_filter_strength(post_id, user["id"], strength)
+    flash("Filter strength updated!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/<int:post_id>/compare")
+@login_required
+def compare_meme(post_id):
+    meme = database.get_meme_post(post_id)
+    if not meme:
+        flash("Meme not found.", "error")
+        return redirect(url_for("memes"))
+    original_url = meme.get("original_photo_url") or meme.get("photo_url")
+    filtered_url = meme.get("photo_url")
+    css_filter = meme.get("css_filters_dict", "")
+    return render_template("meme_compare.html", meme=meme, original_url=original_url,
+                           filtered_url=filtered_url, css_filter=css_filter)
+
+
+@app.route("/meme/grid", methods=["POST"])
+@login_required
+def create_grid_meme():
+    user = _current_user()
+    photo_urls_raw = request.form.get("photo_urls", "").strip()
+    grid_layout = request.form.get("grid_layout", "2x2").strip()
+    caption = request.form.get("caption", "").strip()
+    try:
+        photo_urls = json.loads(photo_urls_raw) if photo_urls_raw else []
+    except (json.JSONDecodeError, ValueError):
+        flash("photo_urls must be valid JSON.", "error")
+        return redirect(url_for("create_meme"))
+    if not photo_urls:
+        flash("At least one photo URL required.", "error")
+        return redirect(url_for("create_meme"))
+    post_id = database.create_grid_meme_post(user["id"], photo_urls, grid_layout, caption or None)
+    flash("Grid meme posted!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/<int:post_id>/text-color", methods=["POST"])
+@login_required
+def set_meme_text_color(post_id):
+    user = _current_user()
+    text_color = request.form.get("text_color", "").strip()
+    if not text_color:
+        flash("Text color required.", "error")
+        return redirect(url_for("feed"))
+    database.set_meme_text_color(post_id, user["id"], text_color)
+    flash("Text color updated!", "success")
+    return redirect(url_for("feed"))
+
+
+@app.route("/meme/of-the-day")
+@login_required
+def meme_of_the_day():
+    meme = database.get_meme_of_the_day()
+    return render_template("meme_of_the_day.html", meme=meme)
+
+
+@app.route("/meme/challenges")
+@login_required
+def meme_challenges():
+    user = _current_user()
+    challenges = database.list_meme_challenges()
+    return render_template("meme_challenges.html", challenges=challenges)
+
+
+@app.route("/meme/challenge/new", methods=["POST"])
+@login_required
+def create_meme_challenge():
+    user = _current_user()
+    title = request.form.get("title", "").strip()
+    description = request.form.get("description", "").strip()
+    ends_at = request.form.get("ends_at", "").strip()
+    if not title:
+        flash("Challenge title required.", "error")
+        return redirect(url_for("meme_challenges"))
+    database.create_meme_challenge(title, description, user["id"], ends_at or None)
+    flash(f"Challenge '{title}' created!", "success")
+    return redirect(url_for("meme_challenges"))
+
+
+@app.route("/meme/challenge/<int:challenge_id>/enter", methods=["POST"])
+@login_required
+def enter_meme_challenge(challenge_id):
+    user = _current_user()
+    post_id = request.form.get("post_id", type=int)
+    if not post_id:
+        flash("Select a meme to enter.", "error")
+        return redirect(url_for("meme_challenges"))
+    database.enter_meme_challenge(challenge_id, user["id"], post_id)
+    flash("Entered the challenge!", "success")
+    return redirect(url_for("meme_challenges"))
+
+
+@app.route("/meme/<int:post_id>/stats")
+@login_required
+def meme_stats(post_id):
+    user = _current_user()
+    meme = database.get_meme_post(post_id)
+    stats = database.get_meme_stats(post_id)
+    remix_chain = database.get_meme_remix_chain(post_id)
+    return render_template("meme_stats.html", meme=meme, stats=stats, remix_chain=remix_chain)
+
+
+@app.route("/meme/<int:post_id>/export")
+@login_required
+def export_meme(post_id):
+    meme = database.get_meme_post(post_id)
+    if not meme:
+        flash("Meme not found.", "error")
+        return redirect(url_for("memes"))
+    return jsonify(meme)
+
+
+@app.route("/meme/trending")
+@login_required
+def meme_trending():
+    tags = database.get_trending_meme_tags()
+    return render_template("meme_trending.html", tags=tags)
+
+
+@app.route("/meme/remix-chain/<int:post_id>")
+@login_required
+def meme_remix_chain(post_id):
+    chain = database.get_meme_remix_chain(post_id)
+    return render_template("meme_stats.html", meme=None, stats=None, remix_chain=chain)
+
+
+@app.route("/meme/search")
+@login_required
+def meme_search():
+    q = request.args.get("q", "").strip()
+    results = database.search_meme_posts(q) if q else []
+    return render_template("meme_search.html", results=results, q=q)
+
+
+# ---------------------------------------------------------------------------
 # v0.8.0: Locality Routes
 # ---------------------------------------------------------------------------
 

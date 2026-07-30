@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Meme Stats — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>📊 Meme Stats</h1>
+  <div style="margin:0.75rem 0;">
+    <a href="{{ url_for('memes') }}" class="btn btn-small">← Back to Memes</a>
+    <a href="{{ url_for('meme_leaderboard') }}" class="btn btn-small">Leaderboard</a>
+    <a href="{{ url_for('meme_trending') }}" class="btn btn-small">Trending</a>
+  </div>
+</div>
+
+{% if meme %}
+<div class="card">
+  <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+    <img src="{{ meme.avatar_url or '/static/default-avatar.png' }}" class="avatar" alt="">
+    <div>
+      <strong>{{ meme.display_name or meme.username }}</strong>
+      <div class="meta">{{ meme.created_at }}</div>
+    </div>
+  </div>
+  {% if meme.text_content %}<p>{{ meme.text_content }}</p>{% endif %}
+  <div class="meme-preview">
+    <img src="{{ meme.photo_url }}" alt="Meme" style="filter:{{ meme.css_filters_dict|default('') }};">
+  </div>
+</div>
+{% endif %}
+
+{% if stats %}
+<div class="card">
+  <h3>Engagement</h3>
+  <div class="grid-3">
+    <div class="local-card">
+      <div style="font-size:1.5rem;font-weight:700;color:var(--accent);">{{ stats.votes|default(0) }}</div>
+      <div class="meta">Votes</div>
+    </div>
+    <div class="local-card">
+      <div style="font-size:1.5rem;font-weight:700;color:var(--accent);">{{ stats.reactions|default(0) }}</div>
+      <div class="meta">Reactions</div>
+    </div>
+    <div class="local-card">
+      <div style="font-size:1.5rem;font-weight:700;color:var(--accent);">{{ stats.remixes|default(0) }}</div>
+      <div class="meta">Remixes</div>
+    </div>
+    <div class="local-card">
+      <div style="font-size:1.5rem;font-weight:700;color:var(--accent);">{{ stats.views|default(0) }}</div>
+      <div class="meta">Views</div>
+    </div>
+    <div class="local-card">
+      <div style="font-size:1.5rem;font-weight:700;color:var(--accent);">{{ stats.score|default(0) }}</div>
+      <div class="meta">Score</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if remix_chain %}
+<div class="card">
+  <h3>🔗 Remix Chain</h3>
+  <p class="meta">Full lineage of this meme and its remixes.</p>
+  <div style="margin-top:0.75rem;">
+    {% for node in remix_chain %}
+    <div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0;{% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}">
+      <span style="color:var(--accent);font-weight:700;">{{ loop.index }}.</span>
+      <img src="{{ node.avatar_url or '/static/default-avatar.png' }}" class="avatar" alt="" style="width:28px;height:28px;">
+      <div style="flex:1;">
+        <strong>{{ node.display_name or node.username }}</strong>
+        <div class="meta">{{ node.created_at }}{% if node.filter_name %} · {{ node.filter_name }}{% endif %}</div>
+      </div>
+      {% if node.id != (meme.id if meme else none) %}
+      <a href="{{ url_for('meme_stats', post_id=node.id) }}" class="btn btn-small">View</a>
+      {% else %}
+      <span class="badge" style="background:var(--accent);">this</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% elif not stats and not meme %}
+<div class="empty-state">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
+  <p>No stats or remix chain data available.</p>
+</div>
+{% endif %}
+{% endblock %}

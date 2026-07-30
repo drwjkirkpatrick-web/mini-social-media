@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Meme Leaderboard — mini-social-media{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>🏆 Meme Leaderboard</h1>
+  <p class="meta">Top memes ranked by community score.</p>
+  <div style="margin:0.75rem 0;">
+    <a href="{{ url_for('memes') }}" class="btn btn-small">← Back to Memes</a>
+    <a href="{{ url_for('meme_challenges') }}" class="btn btn-small">Challenges</a>
+    <a href="{{ url_for('meme_of_the_day') }}" class="btn btn-small">Meme of the Day</a>
+  </div>
+</div>
+
+{% if memes %}
+<ol style="list-style:none;padding:0;">
+  {% for m in memes %}
+  <li>
+    <div class="card" style="display:flex;gap:1rem;align-items:flex-start;">
+      <div style="font-size:1.5rem;font-weight:700;color:var(--accent);min-width:2rem;text-align:center;">
+        #{{ loop.index }}
+      </div>
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+          <img src="{{ m.avatar_url or '/static/default-avatar.png' }}" class="avatar" alt="">
+          <div>
+            <strong>{{ m.display_name or m.username }}</strong>
+            <div class="meta">{{ m.created_at }}</div>
+          </div>
+        </div>
+        {% if m.text_content %}<p>{{ m.text_content }}</p>{% endif %}
+        <div class="meme-preview">
+          <img src="{{ m.photo_url }}" alt="Meme" style="filter:{{ m.css_filters_dict|default('') }};">
+        </div>
+        <div class="meta" style="margin-top:0.5rem;">
+          Score: <strong>{{ m.score|default(0) }}</strong>
+          {% if m.filter_name %}· Filter: {{ m.filter_name }}{% endif %}
+        </div>
+        <div style="margin-top:0.5rem;">
+          <a href="{{ url_for('meme_stats', post_id=m.id) }}" class="btn btn-small">Stats</a>
+          <a href="{{ url_for('compare_meme', post_id=m.id) }}" class="btn btn-small">Compare</a>
+          <a href="{{ url_for('export_meme', post_id=m.id) }}" class="btn btn-small">Export</a>
+        </div>
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<div class="empty-state">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></svg>
+  <p>No leaderboard data yet. Go make some memes!</p>
+  <a href="{{ url_for('create_meme') }}" class="btn btn-primary">Create a Meme</a>
+</div>
+{% endif %}
+{% endblock %}
