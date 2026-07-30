@@ -1,7 +1,7 @@
 # Project State: mini-social-media
 
-> **Last updated:** 2026-07-29
-> **Current phase:** maintenance
+> **Last updated:** 2026-07-30
+> **Current phase:** polish
 > **Overall health:** green
 
 ---
@@ -26,10 +26,11 @@ integration, and Bluesky-inspired moderation & discovery tools.
   code optimizations — 129 tests
 - [x] v0.6.0: Bluesky-inspired — custom feeds, content labels, moderation lists,
   mute accounts, muted words, starter packs, reply controls — 250 tests
+- [x] v0.7.0-prep: Feed N+1 elimination + 30 accuracy/efficiency prompts — 252 tests
 - [x] GitHub repo created and pushed
 
 ### In Progress
-- [ ] —
+- [ ] v0.7.0: Implement remaining accuracy/efficiency prompts from PROMPTS_v7.md
 
 ### Not Started
 - [ ] PostgreSQL backend for >100 users
@@ -66,10 +67,11 @@ integration, and Bluesky-inspired moderation & discovery tools.
 - Local hosting: `127.0.0.1:9197`
 - Docker: `docker compose up --build`
 - GitHub: `drwjkirkpatrick-web/mini-social-media`
-- Tests: `250 passed` via `.venv/bin/python -m pytest tests/ -v`
+- Tests: `252 passed` via `.venv/bin/python -m pytest tests/ -v`
 - Templates: 71 HTML files
 - Database tables: 54
-- Test files: 80
+- Test files: 81
+- Prompt files: 6 (PROMPTS, PROMPTS_v2..v5, PROMPTS_v7)
 
 ## 7. Recent Session Log
 - 2026-07-28: v0.1.0 built and pushed (68 tests)
@@ -90,4 +92,5 @@ integration, and Bluesky-inspired moderation & discovery tools.
 - Prompts v3: `PROMPTS_v3.md` (30 v0.3.0 prompts)
 - Prompts v4: `PROMPTS_v4.md` (30 v0.4.0 prompts)
 - Prompts v5: `PROMPTS_v5.md` (30 v0.5.0 prompts)
+- Prompts v7: `PROMPTS_v7.md` (30 accuracy & efficiency prompts)
 - Repo: https://github.com/drwjkirkpatrick-web/mini-social-media

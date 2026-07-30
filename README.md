@@ -113,6 +113,15 @@ future is coming — and your data should be ready.
   mentioned only, or nobody. Default is `friends`, consistent with the
   friends-only philosophy.
 
+### Accuracy & Efficiency (v0.7.0-prep)
+- **Feed N+1 Elimination** — `get_feed()` now computes like counts, comment
+  counts, and reaction tallies in two SQL queries instead of 3N+2. 50 posts
+  are served with ≤ 3 total DB statements. Faster feed, happier Jetson.
+- **Prompt Roadmap** — `PROMPTS_v7.md` contains 30 testable accuracy and
+  efficiency improvements covering correctness (approval gating, idempotent
+  likes, timezone handling, webhook HMAC) and performance (indexes, connection
+  reuse, batch inserts, query-count ceilings).
+
 ---
 
 ## Quick Start
@@ -158,7 +167,7 @@ create_user("admin", "admin@example.com", hash_password("changeme"), role="admin
 | Audit | SHA-256 hash chain with nonce |
 | Deployment | Docker + Docker Compose |
 | PWA | Web App Manifest + Service Worker |
-| Tests | pytest (250 tests, all passing) |
+|| Tests | pytest (252 tests, all passing) |
 
 ---
 
@@ -187,7 +196,8 @@ mini-social-media/
 ├── PROMPTS_v3.md           # 30 v0.3.0 prompts
 ├── PROMPTS_v4.md           # 30 v0.4.0 prompts
 ├── PROMPTS_v5.md           # 30 v0.5.0 prompts
-├── tests/                  # 80 pytest test files
+├── PROMPTS_v7.md           # 30 accuracy & efficiency prompts
+├── tests/                  # 81 pytest test files
 └── README.md
 ```
 
