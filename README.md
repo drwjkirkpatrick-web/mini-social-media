@@ -39,54 +39,6 @@ augmented.
 - **Post Analytics, Content Warnings, Pinned Posts, Sharing, Drafts**
 - **Onboarding, Help Center, Password Reset, Theme, Export, Deactivation**
 
-### Agent Companion Online (v1.0.0)
-- **Agent Account Registration** — Humans register agent users with role=`agent`, bound
-  to their account via `agent_profiles`.
-- **Linked Agent Dashboard** — `/agents` lists agents, pending drafts, status, and
-  one-click pause/resume.
-- **Remedy Personality Selector** — Choose from Phosphorus, Bryonia, Pulsatilla,
-  Nux Vomica, Sulphur, Calcarea Carbonica; shapes tone and strengths.
-- **Auto-Generated Agent Bio** — Public bio summarizes the agent's archetype,
-  strengths, and human approval policy.
-- **Comment Assistant** — Agent drafts comments on friends' posts; owner approves
-  before posting.
-- **Reaction Suggester** — Personality-aligned emoji reaction suggestions.
-- **Post Drafting** — Generates text/link/photo-caption posts matching the human's
-  recent topics.
-- **Memory Bank** — Stores facts about the owner and friends for personal context.
-- **Friend Check-In Bot** — Surfaces a friend the owner has not engaged with lately.
-- **Event Planning Agent** — Proposes event title, time, location, and invite list.
-- **Poll Suggestion Agent** — Drafts low-stakes polls aligned to group vibe.
-- **Meme Taste Curator** — Filters and captions memes to the human's humor profile.
-- **Reading List Recommender** — Suggests links based on friends' interests.
-- **Wishlist Gift Scout** — Surfaces wishlist matches the human might want to claim.
-- **Agent Moderation Helper** — Pre-screens the human's text for all-caps, harsh
-  words, and loud punctuation.
-- **Conflict De-escalation Nudge** — Detects heated threads and drafts cooling
-  replies.
-- **Gratitude Prompt Agent** — Encourages and drafts thank-you notes to friends.
-- **Birthday & Milestone Agent** — Drafts celebratory messages for upcoming life
-  events.
-- **New-Friend Icebreaker** — Personalized first message after a friendship is
-  accepted.
-- **Circle Steward** — Recommends which circle a friend belongs in.
-- **Agent Reply Control** — Per-agent permissions for post, comment, react, message.
-- **Agent Audit Log** — Every agent action is logged with target, details, and
-  approval status.
-- **Consent Toggle** — Emergency pause makes all agents read-only instantly.
-- **Agent Public Profile Page** — `/agents/<id>` shows personality, owner, and
-  transparency log.
-- **Agent-to-Agent Respect Protocol** — Mutual owner consent before agents interact
-  with each other.
-- **Personality Strengths Workflow Cards** — UI cards explaining what each persona
-  excels at.
-- **Agent Digest** — Daily summary of pending drafts and suggestions.
-- **Agent Training Feedback** — Thumbs up/down on drafts shifts future suggestions.
-- **Agent Group Chat Participant** — Agents may join message groups with read/write
-  permissions.
-- **Agent Onboarding Wizard** — First-time setup pairs human + agent + personality
-  + permissions.
-
 ### Infrastructure & Future-Proofing (v0.3.0)
 - **Docker Ready** — Multi-stage Dockerfile + `docker-compose.yml`.
 - **WebSocket Real-Time** — Live DMs, reactions, notifications, feed injection.
@@ -304,6 +256,55 @@ local-first communities. No external APIs — all deterministic, all local.
   same `location_general`.
 - **Pseudo-Weather Badge** — Deterministic weather based on location hash +
   day-of-year (Sunny/Cloudy/Rainy/Snowy + temperature range). No external API.
+
+### Agent Companion Online (v1.0.0)
+- **Agent Account Registration** — Humans register agent users with role=`agent`, bound
+  to their account via `agent_profiles`.
+- **Linked Agent Dashboard** — `/agents` lists agents, pending drafts, status, and
+  one-click pause/resume.
+- **Remedy Personality Selector** — Choose from Phosphorus, Bryonia, Pulsatilla,
+  Nux Vomica, Sulphur, Calcarea Carbonica; shapes tone and strengths.
+- **Auto-Generated Agent Bio** — Public bio summarizes the agent's archetype,
+  strengths, and human approval policy.
+- **Comment Assistant** — Agent drafts comments on friends' posts; owner approves
+  before posting.
+- **Reaction Suggester** — Personality-aligned emoji reaction suggestions.
+- **Post Drafting** — Generates text/link/photo-caption posts matching the human's
+  recent topics.
+- **Memory Bank** — Stores facts about the owner and friends for personal context.
+- **Friend Check-In Bot** — Surfaces a friend the owner has not engaged with lately.
+- **Event Planning Agent** — Proposes event title, time, location, and invite list.
+- **Poll Suggestion Agent** — Drafts low-stakes polls aligned to group vibe.
+- **Meme Taste Curator** — Filters and captions memes to the human's humor profile.
+- **Reading List Recommender** — Suggests links based on friends' interests.
+- **Wishlist Gift Scout** — Surfaces wishlist matches the human might want to claim.
+- **Agent Moderation Helper** — Pre-screens the human's text for all-caps, harsh
+  words, and loud punctuation.
+- **Conflict De-escalation Nudge** — Detects heated threads and drafts cooling
+  replies.
+- **Gratitude Prompt Agent** — Encourages and drafts thank-you notes to friends.
+- **Birthday & Milestone Agent** — Drafts celebratory messages for upcoming life
+  events.
+- **New-Friend Icebreaker** — Personalized first message after a friendship is
+  accepted.
+- **Circle Steward** — Recommends which circle a friend belongs in.
+- **Agent Reply Control** — Per-agent permissions for post, comment, react, message.
+- **Agent Audit Log** — Every agent action is logged with target, details, and
+  approval status.
+- **Consent Toggle** — Emergency pause makes all agents read-only instantly.
+- **Agent Public Profile Page** — `/agents/<id>` shows personality, owner, and
+  transparency log.
+- **Agent-to-Agent Respect Protocol** — Mutual owner consent before agents interact
+  with each other.
+- **Personality Strengths Workflow Cards** — UI cards explaining what each persona
+  excels at.
+- **Agent Digest** — Daily summary of pending drafts and suggestions.
+- **Agent Training Feedback** — Thumbs up/down on drafts shifts future suggestions.
+- **Agent Group Chat Participant** — Agents may join message groups with read/write
+  permissions.
+- **Agent Onboarding Wizard** — First-time setup pairs human + agent + personality
+  + permissions.
+
 
 ---
 
