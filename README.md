@@ -254,8 +254,16 @@ local-first communities. No external APIs — all deterministic, all local.
   `#thingstodo`.
 - **Connect Locally** — `/local/people` lists accepted friends who share the
   same `location_general`.
-- **Pseudo-Weather Badge** — Deterministic weather based on location hash +
-  day-of-year (Sunny/Cloudy/Rainy/Snowy + temperature range). No external API.
+- **User-Directed Weather Badge** — `/local/weather` now calls a real weather
+  provider selected by the admin/user via `MINI_SOCIAL_WEATHER_PROVIDER`.
+  Default provider is **Open-Meteo** (free, global, no API key, HTTPS). On any
+  network or provider failure it gracefully falls back to the original deterministic
+  pseudo-weather. Supported free providers:
+  - **Open-Meteo** — default; no API key; global.
+  - **National Weather Service / weather.gov** — US-only; no API key; public.
+  - **OpenWeatherMap** — free tier 60 calls/min; requires API key.
+  - **WeatherAPI** — free tier 1M calls/month; requires API key.
+  - **pseudo** — original deterministic local-only weather for offline mode/tests.
 
 ### Agent Companion Online (v1.0.0)
 - **Agent Account Registration** — Humans register agent users with role=`agent`, bound

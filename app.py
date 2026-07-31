@@ -2838,12 +2838,20 @@ def local_people():
 @app.route("/local/weather")
 @login_required
 def local_weather_api():
+    """JSON endpoint for current weather. Provider is configurable via env vars."""
     user = _current_user()
     location = user.get("location_general", "")
     if not location:
         return jsonify({"error": "No location set"}), 400
     weather = database.get_local_weather(location)
     return jsonify(weather)
+
+
+@app.route("/local/weather/providers")
+@login_required
+def local_weather_providers():
+    """List supported weather providers for the user's settings page."""
+    return jsonify(database.supported_weather_providers())
 
 
 # ---------------------------------------------------------------------------

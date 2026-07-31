@@ -7,6 +7,7 @@ WHY: Dict-like access makes template rendering and JSON serialization easier.
 import sqlite3
 import os
 import json
+import hashlib
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Set
 
@@ -4157,33 +4158,31 @@ def list_events_by_location(location_general: str, limit: int = 50) -> List[Dict
     return [dict(r) for r in rows]
 
 
+import weather_service
+
 # ---------------------------------------------------------------------------
-# Deterministic pseudo-weather (v0.8.0)
+# Deterministic pseudo-weather (v0.8.0) — kept for tests / offline fallback
 # ---------------------------------------------------------------------------
-import hashlib
 
 def get_local_weather(location_general: str, date_str: str = None) -> dict:
-    """Return deterministic pseudo-weather based on location hash + day-of-year.
-    No external API calls — purely local computation.
+    """Return real weather from the configured provider, falling back to pseudo-weather.
+
+    The new weather_service module uses MINI_SOCIAL_WEATHER_PROVIDER and
+    MINI_SOCIAL_WEATHER_API_KEY to select a provider. When no provider is configured,
+    Open-Meteo (free, no API key) is used. If the service fails or is unavailable,
+    the original deterministic pseudo-weather is returned so the UI never breaks.
     """
-    if date_str is None:
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    day_of_year = datetime.strptime(date_str, "%Y-%m-%d").timetuple().tm_yday
-    h = hashlib.md5(f"{location_general.lower().strip()}:{date_str}".encode()).hexdigest()
-    conditions = ["Sunny", "Partly Cloudy", "Cloudy", "Light Rain", "Rainy", "Snowy", "Clear"]
-    condition = conditions[int(h[:2], 16) % len(conditions)]
-    # Temperature range: 45-85 F with seasonal swing
-    base_temp = 55 + (int(h[2:4], 16) % 30)
-    seasonal_offset = int(10 * (1 if day_of_year < 60 or day_of_year > 300 else -1) * (abs(day_of_year - 180) / 180))
-    low = base_temp + seasonal_offset - 5
-    high = base_temp + seasonal_offset + 8
-    return {
-        "condition": condition,
-        "low": low,
-        "high": high,
-        "location": location_general,
-        "date": date_str,
-    }
+    return weather_service.get_weather(location_general, date_str)
+
+
+def get_pseudo_weather(location_general: str, date_str: str = None) -> dict:
+    """Original deterministic fallback weather, kept for offline/tests."""
+    return weather_service._pseudo_weather(location_general, date_str)
+
+
+def supported_weather_providers() -> Dict[str, Any]:
+    """Return metadata about supported weather providers."""
+    return weather_service.supported_providers()
 
 
 # ---------------------------------------------------------------------------

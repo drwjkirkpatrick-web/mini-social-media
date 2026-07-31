@@ -116,13 +116,101 @@ def test_connect_locally_feature(client, monkeypatch):
 
 # ── Prompt 15 ─────────────────────────────────────────────────────────────
 def test_location_weather_badge_deterministic(client, monkeypatch):
-    """Same location on same day returns same weather; different locations return different weather."""
-    w1 = database.get_local_weather("Portland, OR", "2026-08-01")
-    w2 = database.get_local_weather("Portland, OR", "2026-08-01")
-    w3 = database.get_local_weather("Seattle, WA", "2026-08-01")
+    """The pseudo-weather fallback is deterministic for the same location and date."""
+    w1 = database.get_pseudo_weather("Portland, OR", "2026-08-01")
+    w2 = database.get_pseudo_weather("Portland, OR", "2026-08-01")
+    w3 = database.get_pseudo_weather("Seattle, WA", "2026-08-01")
     assert w1 == w2
     assert w1["location"] == "Portland, OR"
     assert w3["location"] == "Seattle, WA"
     assert w1["condition"] in {"Sunny","Partly Cloudy","Cloudy","Light Rain","Rainy","Snowy","Clear"}
     assert isinstance(w1["low"], int)
     assert isinstance(w1["high"], int)
+
+
+import weather_service
+from unittest.mock import patch
+
+# ── Prompt 15+ ─────────────────────────────────────────────────────────────
+def test_weather_service_uses_real_provider(monkeypatch):
+    """When the configured provider returns data, we use it with the real source label."""
+    fake = {
+        "daily": {
+            "time": ["2026-08-01"],
+            "weathercode": [3],
+            "temperature_2m_max": [76.0],
+            "temperature_2m_min": [58.0],
+        }
+    }
+    with patch("weather_service._fetch_json", side_effect=[
+        {"results": [{"latitude": 45.5, "longitude": -122.6}]},  # geocode
+        fake,  # forecast
+    ]):
+        w = weather_service.get_weather("Portland, OR", "2026-08-01", provider="open-meteo")
+    assert w["source"] == "open-meteo"
+    assert w["condition"] == "Overcast"
+    assert w["high"] == 76
+    assert w["low"] == 58
+    assert w["location"] == "Portland, OR"
+
+
+def test_weather_service_falls_back_to_pseudo(monkeypatch):
+    """When the configured provider fails, we fall back to deterministic pseudo-weather."""
+    with patch("weather_service._fetch_json", return_value=None):
+        w = weather_service.get_weather("Portland, OR", "2026-08-01", provider="open-meteo")
+    assert w["source"] == "pseudo"
+    assert "fallback_reason" in w
+    assert w["location"] == "Portland, OR"
+    assert isinstance(w["low"], int)
+    assert isinstance(w["high"], int)
+
+
+def test_database_get_local_weather_passes_through_provider(monkeypatch):
+    """database.get_local_weather delegates to weather_service and includes source."""
+    with patch("weather_service._fetch_json", side_effect=[
+        {"results": [{"latitude": 45.5, "longitude": -122.6}]},
+        {
+            "daily": {
+                "time": ["2026-08-01"],
+                "weathercode": [0],
+                "temperature_2m_max": [85.0],
+                "temperature_2m_min": [62.0],
+            }
+        },
+    ]):
+        w = database.get_local_weather("Portland, OR", "2026-08-01")
+    assert w["source"] == "open-meteo"
+    assert w["condition"] == "Clear"
+
+
+def test_database_get_pseudo_weather_returns_deterministic():
+    """The explicit pseudo helper is still deterministic."""
+    w1 = database.get_pseudo_weather("Portland, OR", "2026-08-01")
+    w2 = database.get_pseudo_weather("Portland, OR", "2026-08-01")
+    assert w1 == w2
+    assert w1["source"] == "pseudo"
+
+
+def test_local_weather_api_returns_source(client, monkeypatch):
+    """The /local/weather JSON endpoint exposes real provider data when available."""
+    client.post("/signup", data={"username":"wxapi","email":"wxapi@test.com","password":"secret123","password2":"secret123"})
+    uid = database.get_user_by_username("wxapi")["id"]
+    database.update_user(uid, location_general="Portland, OR")
+    client.post("/login", data={"identifier":"wxapi","password":"secret123"})
+    with patch("weather_service._fetch_json", side_effect=[
+        {"results": [{"latitude": 45.5, "longitude": -122.6}]},
+        {
+            "daily": {
+                "time": [None],  # no specific date requested, use index 0
+                "weathercode": [61],
+                "temperature_2m_max": [68.0],
+                "temperature_2m_min": [52.0],
+            }
+        },
+    ]):
+        resp = client.get("/local/weather")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["source"] == "open-meteo"
+    assert data["condition"] == "Light Rain"
+    assert "low" in data and "high" in data
