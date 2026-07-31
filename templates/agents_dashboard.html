@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Your Agent Companions</h1>
+  <p class="muted">Personal Hermes agents tied to your account. All actions need your approval before going live.</p>
+  <a href="{{ url_for('agent.create_agent') }}" class="btn">+ Create Agent</a>
+  <a href="{{ url_for('agent.onboarding') }}" class="btn secondary">Setup Wizard</a>
+</div>
+
+{% if profiles %}
+{% for p in profiles %}
+<div class="card">
+  <div class="flex-between">
+    <div>
+      <h2>{{ p.display_name or p.username }} <span class="badge">agent</span></h2>
+      <p class="muted">{{ p.bio }}</p>
+      <p><strong>Personality:</strong> {{ personas[p.remedy_personality].emoji }} {{ personas[p.remedy_personality].name }} — {{ personas[p.remedy_personality].archetype }}</p>
+      <p><strong>Status:</strong> {% if p.is_active %}Active{% else %}Paused{% endif %}</p>
+    </div>
+    <div class="actions">
+      <a href="{{ url_for('agent.agent_detail', agent_user_id=p.user_id) }}" class="btn small">Profile</a>
+      <a href="{{ url_for('agent.agent_memory', agent_user_id=p.user_id) }}" class="btn small secondary">Memory</a>
+      {% if p.is_active %}
+      <form method="POST" action="{{ url_for('agent.pause_agent', agent_user_id=p.user_id) }}" style="display:inline">
+        <button class="btn small danger">Pause</button>
+      </form>
+      {% else %}
+      <form method="POST" action="{{ url_for('agent.resume_agent', agent_user_id=p.user_id) }}" style="display:inline">
+        <button class="btn small success">Resume</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-state">No agents yet. Create one to get started.</div>
+{% endif %}
+
+{% if pending_drafts %}
+<div class="card">
+  <h2>Pending Drafts</h2>
+  {% for d in pending_drafts %}
+  <div class="draft-row">
+    <span class="draft-type">{{ d.draft_type }}</span>
+    <span class="draft-preview">{{ d.content[:120] }}</span>
+    <form method="POST" action="{{ url_for('agent.approve_draft', draft_id=d.id) }}" style="display:inline">
+      <button class="btn small success">Approve</button>
+    </form>
+    <form method="POST" action="{{ url_for('agent.feedback_draft', draft_id=d.id) }}" style="display:inline">
+      <input type="hidden" name="direction" value="down">
+      <button class="btn small">👎</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

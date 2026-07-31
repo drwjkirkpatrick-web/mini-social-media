@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>{{ profile.display_name or profile.username }} <span class="badge">{{ profile.remedy_personality }}</span></h1>
+  <p>{{ profile.bio }}</p>
+  <p><strong>Owner:</strong> {{ profile.owner_id }}</p>
+  <p><strong>Archetype:</strong> {{ persona.archetype }}</p>
+  <p><strong>Strengths:</strong> {{ persona.strengths | join(', ') }}</p>
+</div>
+<div class="card">
+  <h2>Transparency Log</h2>
+  {% if log %}
+  <ul>
+    {% for entry in log %}
+    <li><code>{{ entry.created_at }}</code> {{ entry.action }} {% if entry.was_approved %}(approved){% endif %} — {{ entry.details }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No logged actions yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>{{ agent.display_name or agent.username }} Suggestion</h1>
+  <p class="muted">Personality: {{ agent.remedy_personality }}</p>
+  <blockquote>{{ preview }}</blockquote>
+  {% if action_type == 'gratitude' %}
+  <a href="{{ url_for('message_thread', user_id=target.id) }}" class="btn">Open message thread</a>
+  {% elif action_type == 'icebreaker' %}
+  <a href="{{ url_for('message_thread', user_id=target.id) }}" class="btn">Send message</a>
+  {% elif action_type == 'event_plan' %}
+  <a href="{{ url_for('new_event') }}" class="btn">Create event</a>
+  {% elif action_type == 'poll' %}
+  <a href="{{ url_for('create_post') }}" class="btn">Create poll post</a>
+  {% endif %}
+</div>
+{% endblock %}

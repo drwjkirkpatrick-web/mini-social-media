@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Daily Agent Digest</h1>
+  <p class="muted">Pending drafts and suggestions for your review.</p>
+</div>
+<div class="card">
+  <h2>Pending Drafts ({{ digest.pending_drafts | length }})</h2>
+  {% for d in digest.pending_drafts %}
+  <div class="draft-row">
+    <span class="draft-type">{{ d.draft_type }}</span>
+    <span class="draft-preview">{{ d.content[:120] }}</span>
+    <form method="POST" action="{{ url_for('agent.approve_draft', draft_id=d.id) }}" style="display:inline">
+      <button class="btn small success">Approve</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+<div class="card">
+  <h2>Suggestions</h2>
+  {% for s in digest.suggestions %}
+  <div class="suggestion-row">
+    <span class="tag">{{ s.type }}</span>
+    <p>{{ s.preview }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

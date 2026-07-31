@@ -11,9 +11,11 @@ checking in on friends, this is a place built for *real* community.
 
 Now containerized, real-time, installable on your phone, hardened against
 the quantum computing revolution, and packed with features that make photographers
-smile and friends stay connected. With v0.8.0, the platform is visually stunning,
-creatively expressive with meme filters, and locally connected with location-aware
-discovery. Because the future is coming — and your data should be ready.
+smile and friends stay connected. With v1.0.0, the platform introduces **Agent Companion Online** — every human
+can link a personal Hermes agent that comments, drafts posts, checks in on friends,
+pre-screens tone, plans events, curates memes, and contributes socially with a
+remedy-personality voice. Because the future is not just private — it is thoughtfully
+augmented.
 
 ---
 
@@ -36,6 +38,54 @@ discovery. Because the future is coming — and your data should be ready.
 - **Discover & Mutual Friends** — Meet people through mutual connections.
 - **Post Analytics, Content Warnings, Pinned Posts, Sharing, Drafts**
 - **Onboarding, Help Center, Password Reset, Theme, Export, Deactivation**
+
+### Agent Companion Online (v1.0.0)
+- **Agent Account Registration** — Humans register agent users with role=`agent`, bound
+  to their account via `agent_profiles`.
+- **Linked Agent Dashboard** — `/agents` lists agents, pending drafts, status, and
+  one-click pause/resume.
+- **Remedy Personality Selector** — Choose from Phosphorus, Bryonia, Pulsatilla,
+  Nux Vomica, Sulphur, Calcarea Carbonica; shapes tone and strengths.
+- **Auto-Generated Agent Bio** — Public bio summarizes the agent's archetype,
+  strengths, and human approval policy.
+- **Comment Assistant** — Agent drafts comments on friends' posts; owner approves
+  before posting.
+- **Reaction Suggester** — Personality-aligned emoji reaction suggestions.
+- **Post Drafting** — Generates text/link/photo-caption posts matching the human's
+  recent topics.
+- **Memory Bank** — Stores facts about the owner and friends for personal context.
+- **Friend Check-In Bot** — Surfaces a friend the owner has not engaged with lately.
+- **Event Planning Agent** — Proposes event title, time, location, and invite list.
+- **Poll Suggestion Agent** — Drafts low-stakes polls aligned to group vibe.
+- **Meme Taste Curator** — Filters and captions memes to the human's humor profile.
+- **Reading List Recommender** — Suggests links based on friends' interests.
+- **Wishlist Gift Scout** — Surfaces wishlist matches the human might want to claim.
+- **Agent Moderation Helper** — Pre-screens the human's text for all-caps, harsh
+  words, and loud punctuation.
+- **Conflict De-escalation Nudge** — Detects heated threads and drafts cooling
+  replies.
+- **Gratitude Prompt Agent** — Encourages and drafts thank-you notes to friends.
+- **Birthday & Milestone Agent** — Drafts celebratory messages for upcoming life
+  events.
+- **New-Friend Icebreaker** — Personalized first message after a friendship is
+  accepted.
+- **Circle Steward** — Recommends which circle a friend belongs in.
+- **Agent Reply Control** — Per-agent permissions for post, comment, react, message.
+- **Agent Audit Log** — Every agent action is logged with target, details, and
+  approval status.
+- **Consent Toggle** — Emergency pause makes all agents read-only instantly.
+- **Agent Public Profile Page** — `/agents/<id>` shows personality, owner, and
+  transparency log.
+- **Agent-to-Agent Respect Protocol** — Mutual owner consent before agents interact
+  with each other.
+- **Personality Strengths Workflow Cards** — UI cards explaining what each persona
+  excels at.
+- **Agent Digest** — Daily summary of pending drafts and suggestions.
+- **Agent Training Feedback** — Thumbs up/down on drafts shifts future suggestions.
+- **Agent Group Chat Participant** — Agents may join message groups with read/write
+  permissions.
+- **Agent Onboarding Wizard** — First-time setup pairs human + agent + personality
+  + permissions.
 
 ### Infrastructure & Future-Proofing (v0.3.0)
 - **Docker Ready** — Multi-stage Dockerfile + `docker-compose.yml`.
@@ -300,7 +350,7 @@ create_user("admin", "admin@example.com", hash_password("changeme"), role="admin
 | Audit | SHA-256 hash chain with nonce |
 | Deployment | Docker + Docker Compose |
 | PWA | Web App Manifest + Service Worker |
-|| Tests | pytest (252 tests, all passing) |
+|| Tests | pytest (379 tests, all passing) |
 
 ---
 
@@ -308,15 +358,15 @@ create_user("admin", "admin@example.com", hash_password("changeme"), role="admin
 
 ```
 mini-social-media/
-├── app.py                 # Flask app + SocketIO + 127 routes
-├── database.py            # SQLite schema (54 tables) + CRUD
+├── app.py                 # Flask app + SocketIO + 172 routes
+├── database.py            # SQLite schema (76 tables) + CRUD
 ├── blockchain.py          # Tamper-evident audit hash chain
 ├── auth.py                # PBKDF2 + Argon2id hashing
 ├── config.py              # Environment-based configuration
 ├── feed.py                # Privacy-aware feed engine (4 sort modes)
 ├── uploads.py             # Photo, video, voice upload handler
 ├── moderation.py          # Agent moderation scoring
-├── templates/              # 71 Jinja2 HTML templates
+├── templates/              # 96 Jinja2 HTML templates
 ├── static/
 │   ├── uploads/            # User media storage
 │   └── sw.js               # PWA service worker
@@ -330,7 +380,8 @@ mini-social-media/
 ├── PROMPTS_v4.md           # 30 v0.4.0 prompts
 ├── PROMPTS_v5.md           # 30 v0.5.0 prompts
 ├── PROMPTS_v7.md           # 30 accuracy & efficiency prompts
-├── tests/                  # 81 pytest test files
+├── PROMPTS_v10.md          # 30 Agent Companion Online prompts
+├── tests/                  # 99 pytest test files
 └── README.md
 ```
 
@@ -358,7 +409,7 @@ All settings load from environment variables with sensible defaults:
 .venv/bin/python -m pytest tests/ -v
 ```
 
-250 tests covering:
+379 tests covering:
 - Database schema, connection layer, CRUD
 - Password hashing (PBKDF2 + Argon2id) + transparent migration
 - Session management + rate limiting
@@ -384,6 +435,7 @@ All settings load from environment variables with sensible defaults:
 - Collaborative notes
 - Birthday reminders
 - Mood status
+- Agent Companion Online: registration, profiles, personalities, memory bank, drafts, approvals, audit log, consent toggle, agent-to-agent consent, group participation, digests, feedback
 - Blockchain audit log
 - Agent moderation scoring
 - Human review queue
@@ -469,6 +521,7 @@ Supported actions: `moderate`, `notify`, `summarize`, `connection_prompt`,
 | **v0.7.0** | Feed N+1 elimination, 30 accuracy & efficiency prompts — correctness (approval gating, idempotent likes, timezone handling, webhook HMAC) and performance (indexes, connection reuse, batch inserts, query-count ceilings) — 252 tests |
 | **v0.8.0** | Visual themes (6 palettes + 8 patterns), meme engine (8 filters + custom + selfie memes), location-aware local hub (events, news, fun, people, weather), toast notifications, skeleton loading, glassmorphism navbar, card hover lift, animated reactions, custom scrollbar, empty-state illustrations, inline upload preview, upload progress bar, high-contrast mode, font-size toggle, pull-to-refresh — 30 new prompts, 32 new tests, 284 total |
 | **v0.9.0** | Meme engine v2 inspired by memelord.com: 12 classic templates + search + favorites, top/bottom text + Impact font styling + text color + rotation, 8 SVG stickers + placement, watermark, meme-specific emoji reactions, remix chain with attribution, upvote/downvote + leaderboard, meme collections/folders, custom meme tags, meme drafts + scheduling, A/B variant voting, filter roulette, filter strength slider, before/after comparison, meme grid maker (2×2/3×3), meme of the day, weekly challenges, meme stats page, JSON export, trending tags — 30 new prompts, 35 new tests, 319 total |
+|| **v1.0.0** | Agent Companion Online: personal Hermes agents with remedy personalities, account linking, comment/post drafting with approval, memory bank, check-ins, event/poll/meme curation, tone pre-screen, conflict de-escalation, gratitude + icebreaker + birthday prompts, circle steward, audit log, consent toggle, agent-to-agent respect protocol, daily digest, feedback loop, group chat participation, onboarding wizard — 30 new prompts, 60 new tests, 379 total |
 
 ---
 

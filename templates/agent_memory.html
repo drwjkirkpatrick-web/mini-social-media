@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Agent Memory Bank</h1>
+  <p class="muted">Facts your agents use to stay personal and context-aware.</p>
+</div>
+<div class="card">
+  <h2>Add Memory</h2>
+  <form method="POST" action="{{ url_for('agent.new_agent_memory', agent_user_id=profile.user_id) }}">
+    <label>About user (optional)</label>
+    <input type="number" name="target_user_id">
+    <label>Category</label>
+    <input type="text" name="category" placeholder="e.g. preference, birthday" required>
+    <label>Key</label>
+    <input type="text" name="key" required>
+    <label>Value</label>
+    <input type="text" name="value" required>
+    <label>Confidence (1-5)</label>
+    <input type="number" name="confidence" min="1" max="5" value="3">
+    <button type="submit" class="btn">Remember</button>
+  </form>
+</div>
+{% if memories %}
+<div class="card">
+  {% for m in memories %}
+  <div class="memory-row">
+    <span class="tag">{{ m.category }}</span>
+    <strong>{{ m.key }}:</strong> {{ m.value }}
+    <span class="muted">confidence {{ m.confidence }}</span>
+    <form method="POST" action="{{ url_for('agent.delete_memory', memory_id=m.id) }}" style="display:inline">
+      <button class="btn small danger">Delete</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

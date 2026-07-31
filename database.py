@@ -6,6 +6,7 @@ WHY: Dict-like access makes template rendering and JSON serialization easier.
 
 import sqlite3
 import os
+import json
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List, Set
 
@@ -42,7 +43,7 @@ def init_database():
             cover_url TEXT,
             pronouns TEXT,
             location TEXT,
-            role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin')),
+            role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'agent')),
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
@@ -958,6 +959,111 @@ def init_database():
             UNIQUE(pack_id, user_id)
         )
     """)
+    # v1.0.0: Agent Companion Online
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agent_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            remedy_personality TEXT NOT NULL DEFAULT 'phosphorus',
+            is_active INTEGER DEFAULT 1,
+            can_post INTEGER DEFAULT 0,
+            can_comment INTEGER DEFAULT 1,
+            can_react INTEGER DEFAULT 1,
+            can_message INTEGER DEFAULT 1,
+            moderation_mode TEXT DEFAULT 'warn' CHECK(moderation_mode IN ('warn','block','silent')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(user_id, owner_id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agent_memory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            target_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            category TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            confidence INTEGER DEFAULT 3 CHECK(confidence BETWEEN 1 AND 5),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(owner_id, target_user_id, category, key)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agent_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            action TEXT NOT NULL,
+            target_type TEXT,
+            target_id INTEGER,
+            details TEXT,
+            was_approved INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agent_drafts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            draft_type TEXT NOT NULL,
+            target_id INTEGER,
+            content TEXT NOT NULL,
+            context TEXT,
+            is_approved INTEGER DEFAULT 0,
+            is_posted INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agent_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            draft_id INTEGER,
+            direction TEXT NOT NULL CHECK(direction IN ('up','down')),
+            note TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agent_permissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            feature TEXT NOT NULL,
+            is_allowed INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(agent_id, feature)
+        )
+    """)
+    # Agent-to-agent mutual consent
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agent_agent_consent (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_a_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            agent_b_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            is_allowed INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(agent_a_id, agent_b_id)
+        )
+    """)
+    # Agent group membership
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agent_group_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            group_id INTEGER NOT NULL REFERENCES message_groups(id) ON DELETE CASCADE,
+            can_read INTEGER DEFAULT 1,
+            can_write INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(agent_id, group_id)
+        )
+    """)
+
     # Seed achievements if empty
     ach_count = cursor.execute("SELECT COUNT(*) as c FROM achievements").fetchone()
     if ach_count and ach_count["c"] == 0:
@@ -984,6 +1090,29 @@ def init_database():
     conn.commit()
     conn.close()
     print("Database initialized.")
+
+
+
+
+# ---------------------------------------------------------------------------
+# v1.0.0: Connection context manager (efficiency + safety)
+# ---------------------------------------------------------------------------
+
+from contextlib import contextmanager
+
+@contextmanager
+def db_cursor():
+    """Yield a cursor and guarantee commit/close.
+    
+    Use for new agent code and any new DB helpers.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        yield cursor
+        conn.commit()
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -4055,3 +4184,315 @@ def get_local_weather(location_general: str, date_str: str = None) -> dict:
         "location": location_general,
         "date": date_str,
     }
+
+
+# ---------------------------------------------------------------------------
+# v1.0.0: Agent Companion Online — database helpers
+# ---------------------------------------------------------------------------
+
+def upsert_agent_profile(user_id: int, owner_id: int, remedy_personality: str = "phosphorus",
+                          **fields) -> Dict[str, Any]:
+    """Create or update an agent profile. Returns the profile row."""
+    allowed = {"is_active", "can_post", "can_comment", "can_react", "can_message", "moderation_mode"}
+    safe = {k: v for k, v in fields.items() if k in allowed}
+    with db_cursor() as cur:
+        cur.execute(
+            """INSERT INTO agent_profiles (user_id, owner_id, remedy_personality)
+               VALUES (?, ?, ?)
+               ON CONFLICT(user_id, owner_id) DO UPDATE SET
+                   remedy_personality=excluded.remedy_personality,
+                   updated_at=datetime('now')""",
+            (user_id, owner_id, remedy_personality),
+        )
+        if safe:
+            set_clause = ", ".join(f"{k} = ?" for k in safe)
+            cur.execute(
+                f"UPDATE agent_profiles SET {set_clause}, updated_at=datetime('now') WHERE user_id=? AND owner_id=?",
+                list(safe.values()) + [user_id, owner_id],
+            )
+        row = cur.execute(
+            "SELECT * FROM agent_profiles WHERE user_id=? AND owner_id=?", (user_id, owner_id)
+        ).fetchone()
+    return dict(row)
+
+
+def get_agent_profile(user_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT ap.*, u.username, u.display_name, u.bio, u.avatar_url, u.role
+           FROM agent_profiles ap
+           JOIN users u ON u.id = ap.user_id
+           WHERE ap.user_id = ?""",
+        (user_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_agent_profile_by_id(profile_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    row = conn.execute(
+        """SELECT ap.*, u.username, u.display_name, u.bio, u.avatar_url, u.role
+           FROM agent_profiles ap
+           JOIN users u ON u.id = ap.user_id
+           WHERE ap.id = ?""",
+        (profile_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_agent_profiles_for_owner(owner_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT ap.*, u.username, u.display_name, u.bio, u.avatar_url
+           FROM agent_profiles ap
+           JOIN users u ON u.id = ap.user_id
+           WHERE ap.owner_id = ?""",
+        (owner_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_agent_profile(user_id: int, owner_id: int, **fields) -> bool:
+    allowed = {"is_active", "can_post", "can_comment", "can_react", "can_message",
+               "moderation_mode", "remedy_personality"}
+    safe = {k: v for k, v in fields.items() if k in allowed}
+    if not safe:
+        return False
+    with db_cursor() as cur:
+        set_clause = ", ".join(f"{k} = ?" for k in safe)
+        cur.execute(
+            f"UPDATE agent_profiles SET {set_clause}, updated_at=datetime('now') WHERE user_id=? AND owner_id=?",
+            list(safe.values()) + [user_id, owner_id],
+        )
+    return True
+
+
+def log_agent_action(agent_id: int, owner_id: int, action: str,
+                     target_type: str = None, target_id: int = None,
+                     details: str = "", was_approved: int = 0) -> int:
+    with db_cursor() as cur:
+        cur.execute(
+            """INSERT INTO agent_audit_log (agent_id, owner_id, action, target_type, target_id, details, was_approved)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (agent_id, owner_id, action, target_type, target_id, details, was_approved),
+        )
+        return cur.lastrowid
+
+
+def list_agent_audit_log(owner_id: int, agent_id: int = None, limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    if agent_id:
+        rows = conn.execute(
+            """SELECT * FROM agent_audit_log
+               WHERE owner_id = ? AND agent_id = ?
+               ORDER BY created_at DESC LIMIT ?""",
+            (owner_id, agent_id, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """SELECT * FROM agent_audit_log
+               WHERE owner_id = ?
+               ORDER BY created_at DESC LIMIT ?""",
+            (owner_id, limit),
+        ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def upsert_agent_memory(owner_id: int, target_user_id: Optional[int], category: str,
+                        key: str, value: str, confidence: int = 3) -> int:
+    with db_cursor() as cur:
+        cur.execute(
+            """INSERT INTO agent_memory (owner_id, target_user_id, category, key, value, confidence)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(owner_id, target_user_id, category, key) DO UPDATE SET
+                   value=excluded.value,
+                   confidence=excluded.confidence,
+                   updated_at=datetime('now')""",
+            (owner_id, target_user_id, category, key, value, confidence),
+        )
+        return cur.lastrowid
+
+
+def list_agent_memory(owner_id: int, target_user_id: Optional[int] = None,
+                      category: Optional[str] = None, key: Optional[str] = None) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    clauses = ["owner_id = ?"]
+    params = [owner_id]
+    if target_user_id is not None:
+        clauses.append("target_user_id = ?")
+        params.append(target_user_id)
+    if category:
+        clauses.append("category = ?")
+        params.append(category)
+    if key:
+        clauses.append("key = ?")
+        params.append(key)
+    where = " AND ".join(clauses)
+    rows = conn.execute(
+        f"SELECT * FROM agent_memory WHERE {where} ORDER BY updated_at DESC",
+        tuple(params),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def delete_agent_memory(owner_id: int, memory_id: int) -> bool:
+    with db_cursor() as cur:
+        cur.execute("DELETE FROM agent_memory WHERE id = ? AND owner_id = ?", (memory_id, owner_id))
+        return cur.rowcount > 0
+
+
+def create_agent_draft(agent_id: int, owner_id: int, draft_type: str, target_id: int,
+                       content: str, context: Optional[Dict[str, Any]] = None) -> int:
+    ctx = json.dumps(context) if context else None
+    with db_cursor() as cur:
+        cur.execute(
+            """INSERT INTO agent_drafts (agent_id, owner_id, draft_type, target_id, content, context)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (agent_id, owner_id, draft_type, target_id, content, ctx),
+        )
+        return cur.lastrowid
+
+
+def get_agent_draft(draft_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM agent_drafts WHERE id = ?", (draft_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_agent_drafts(owner_id: int, is_approved: Optional[int] = None,
+                      is_posted: Optional[int] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    clauses = ["owner_id = ?"]
+    params = [owner_id]
+    if is_approved is not None:
+        clauses.append("is_approved = ?")
+        params.append(is_approved)
+    if is_posted is not None:
+        clauses.append("is_posted = ?")
+        params.append(is_posted)
+    where = " AND ".join(clauses)
+    rows = conn.execute(
+        f"SELECT * FROM agent_drafts WHERE {where} ORDER BY created_at DESC LIMIT ?",
+        tuple(params) + (limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def mark_agent_draft_posted(draft_id: int) -> bool:
+    with db_cursor() as cur:
+        cur.execute(
+            "UPDATE agent_drafts SET is_approved = 1, is_posted = 1 WHERE id = ?",
+            (draft_id,),
+        )
+        return cur.rowcount > 0
+
+
+def approve_agent_draft(draft_id: int) -> bool:
+    with db_cursor() as cur:
+        cur.execute(
+            "UPDATE agent_drafts SET is_approved = 1 WHERE id = ?",
+            (draft_id,),
+        )
+        return cur.rowcount > 0
+
+
+def create_agent_feedback(agent_id: int, owner_id: int, draft_id: Optional[int],
+                          direction: str, note: str = "") -> int:
+    with db_cursor() as cur:
+        cur.execute(
+            """INSERT INTO agent_feedback (agent_id, owner_id, draft_id, direction, note)
+               VALUES (?, ?, ?, ?, ?)""",
+            (agent_id, owner_id, draft_id, direction, note),
+        )
+        return cur.lastrowid
+
+
+def list_agent_feedback(agent_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM agent_feedback WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?",
+        (agent_id, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_agent_permission(agent_id: int, feature: str) -> Optional[bool]:
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT is_allowed FROM agent_permissions WHERE agent_id = ? AND feature = ?",
+        (agent_id, feature),
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return bool(row["is_allowed"])
+
+
+def set_agent_permission(agent_id: int, owner_id: int, feature: str, is_allowed: bool) -> int:
+    with db_cursor() as cur:
+        cur.execute(
+            """INSERT INTO agent_permissions (agent_id, owner_id, feature, is_allowed)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(agent_id, feature) DO UPDATE SET is_allowed=excluded.is_allowed""",
+            (agent_id, owner_id, feature, int(is_allowed)),
+        )
+        return cur.lastrowid
+
+
+def has_agent_agent_consent(agent_a_id: int, agent_b_id: int) -> bool:
+    a, b = sorted((agent_a_id, agent_b_id))
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT is_allowed FROM agent_agent_consent WHERE agent_a_id = ? AND agent_b_id = ?",
+        (a, b),
+    ).fetchone()
+    conn.close()
+    return bool(row and row["is_allowed"])
+
+
+def set_agent_agent_consent(agent_a_id: int, agent_b_id: int, is_allowed: bool) -> int:
+    a, b = sorted((agent_a_id, agent_b_id))
+    with db_cursor() as cur:
+        cur.execute(
+            """INSERT INTO agent_agent_consent (agent_a_id, agent_b_id, is_allowed)
+               VALUES (?, ?, ?)
+               ON CONFLICT(agent_a_id, agent_b_id) DO UPDATE SET is_allowed=excluded.is_allowed""",
+            (a, b, int(is_allowed)),
+        )
+        return cur.lastrowid
+
+
+def add_agent_group_member(agent_id: int, group_id: int, can_read: int = 1, can_write: int = 0) -> bool:
+    with db_cursor() as cur:
+        cur.execute(
+            """INSERT INTO agent_group_members (agent_id, group_id, can_read, can_write)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(agent_id, group_id) DO UPDATE SET
+                   can_read=excluded.can_read,
+                   can_write=excluded.can_write""",
+            (agent_id, group_id, can_read, can_write),
+        )
+        return True
+
+
+def remove_agent_group_member(agent_id: int, group_id: int) -> bool:
+    with db_cursor() as cur:
+        cur.execute("DELETE FROM agent_group_members WHERE agent_id = ? AND group_id = ?", (agent_id, group_id))
+        return cur.rowcount > 0
+
+
+def list_agent_group_members(agent_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM agent_group_members WHERE agent_id = ?", (agent_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

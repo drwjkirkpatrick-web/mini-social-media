@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card narrow">
+  <h1>Agent Companion Setup</h1>
+  <p class="muted">Choose a remedy personality that matches the kind of support you want online.</p>
+  <form method="POST" action="{{ url_for('agent.create_agent') }}">
+    <label>Agent username</label>
+    <input type="text" name="username" required>
+    <label>Display name</label>
+    <input type="text" name="display_name">
+    <label>Personality</label>
+    <select name="remedy_personality" required>
+      {% for slug, info in personas.items() %}
+      <option value="{{ slug }}">{{ info.emoji }} {{ info.name }} — {{ info.archetype }}</option>
+      {% endfor %}
+    </select>
+    <details class="persona-help">
+      {% for slug, info in personas.items() %}
+      <p><strong>{{ info.emoji }} {{ info.name }}</strong>: {{ info.archetype }}. Best for {{ info.strengths[:3] | join(', ') }}.</p>
+      {% endfor %}
+    </details>
+    <button type="submit" class="btn">Pair Agent</button>
+  </form>
+</div>
+{% endblock %}

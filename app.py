@@ -22,6 +22,7 @@ from auth import hash_password, verify_password, login_required, admin_required,
 from uploads import save_photo, allowed_file
 from moderation import moderate_text, status_from_score
 from feed import get_feed
+from agent_routes import agent_bp
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -33,6 +34,7 @@ app.config["MAX_CONTENT_LENGTH"] = get_config().max_file_size_mb * 1024 * 1024
 
 # SocketIO — async_mode='threading' avoids eventlet/gevent dependency
 socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*")
+app.register_blueprint(agent_bp)
 
 # Ensure DB exists before first request
 @app.before_request
