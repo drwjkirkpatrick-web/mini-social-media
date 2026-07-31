@@ -242,29 +242,6 @@ local-first communities. No external APIs — all deterministic, all local.
 - **Trending Meme Tags** — `/meme/trending` shows most-used tags in the last
   7 days. `get_trending_meme_tags()` with time-windowed counting.
 
-### Location Awareness & Local Connection (v0.8.0)
-- **Location Storage with Privacy Tiers** — `location_general` (text, e.g.
-  "Portland, OR"), optional `location_lat`/`location_lng`, and
-  `location_precision` (`hidden` | `general` | `precise`).
-- **Local Events Discovery** — `/local/events` fuzzy-matches events by general
-  location text.
-- **Local News Aggregation** — `/local/news` shows community-generated local-news
-  posts from friends and friends-of-friends in the same general location.
-- **Local Fun & Activities** — `/local/fun` surfaces posts tagged `#localfun` or
-  `#thingstodo`.
-- **Connect Locally** — `/local/people` lists accepted friends who share the
-  same `location_general`.
-- **User-Directed Weather Badge** — `/local/weather` now calls a real weather
-  provider selected by the admin/user via `MINI_SOCIAL_WEATHER_PROVIDER`.
-  Default provider is **Open-Meteo** (free, global, no API key, HTTPS). On any
-  network or provider failure it gracefully falls back to the original deterministic
-  pseudo-weather. Supported free providers:
-  - **Open-Meteo** — default; no API key; global.
-  - **National Weather Service / weather.gov** — US-only; no API key; public.
-  - **OpenWeatherMap** — free tier 60 calls/min; requires API key.
-  - **WeatherAPI** — free tier 1M calls/month; requires API key.
-  - **pseudo** — original deterministic local-only weather for offline mode/tests.
-
 ### Agent Companion Online (v1.0.0)
 - **Agent Account Registration** — Humans register agent users with role=`agent`, bound
   to their account via `agent_profiles`.
@@ -313,6 +290,29 @@ local-first communities. No external APIs — all deterministic, all local.
 - **Agent Onboarding Wizard** — First-time setup pairs human + agent + personality
   + permissions.
 
+
+### Location Awareness & Local Connection (v0.8.0)
+- **Location Storage with Privacy Tiers** — `location_general` (text, e.g.
+  "Portland, OR"), optional `location_lat`/`location_lng`, and
+  `location_precision` (`hidden` | `general` | `precise`).
+- **Local Events Discovery** — `/local/events` fuzzy-matches events by general
+  location text.
+- **Local News Aggregation** — `/local/news` shows community-generated local-news
+  posts from friends and friends-of-friends in the same general location.
+- **Local Fun & Activities** — `/local/fun` surfaces posts tagged `#localfun` or
+  `#thingstodo`.
+- **Connect Locally** — `/local/people` lists accepted friends who share the
+  same `location_general`.
+- **User-Directed Weather Badge** — `/local/weather` now calls a real weather
+  provider selected by the admin/user via `MINI_SOCIAL_WEATHER_PROVIDER`.
+  Default provider is **Open-Meteo** (free, global, no API key, HTTPS). On any
+  network or provider failure it gracefully falls back to the original deterministic
+  pseudo-weather. Supported free providers:
+  - **Open-Meteo** — default; no API key; global.
+  - **National Weather Service / weather.gov** — US-only; no API key; public.
+  - **OpenWeatherMap** — free tier 60 calls/min; requires API key.
+  - **WeatherAPI** — free tier 1M calls/month; requires API key.
+  - **pseudo** — original deterministic local-only weather for offline mode/tests.
 
 ---
 
